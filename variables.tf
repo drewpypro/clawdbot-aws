@@ -31,12 +31,6 @@ variable "node_version" {
   default     = "22"
 }
 
-variable "subnet_id" {
-  type        = string
-  description = "Subnet ID for EC2 instance (leave empty for default VPC)"
-  default     = ""
-}
-
 variable "allowed_ssh_cidrs" {
   type        = list(string)
   description = "CIDR blocks allowed to SSH into the instance"
