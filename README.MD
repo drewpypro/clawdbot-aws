@@ -12,12 +12,6 @@ flowchart TB
         PR --> WF
     end
 
-    subgraph AUTH["Authentication"]
-        OIDC["GitHub OIDC Provider<br/>(token.actions.githubusercontent.com)"]
-        STS["AWS STS<br/>AssumeRoleWithWebIdentity"]
-        ROLE["IAM Role<br/>clawdbot-github-actions"]
-    end
-
     subgraph AWS["AWS Account"]
         subgraph VPC["Default VPC"]
             SG["Security Group<br/>SSH restricted + HTTPS/DNS egress"]
@@ -25,12 +19,9 @@ flowchart TB
                 OS["Debian 12 Bookworm"]
                 NODE["Node.js 22 (nvm)"]
                 OC["OpenClaw Gateway"]
-                PROF["Instance Profile<br/>clawdbot-ec2-profile"]
             end
         end
         EBS["EBS gp3 30GB<br/>(encrypted)"]
-        CW["CloudWatch Logs"]
-        SSM["SSM Session Manager"]
     end
 
     subgraph R2["Cloudflare R2"]
@@ -44,22 +35,16 @@ flowchart TB
         GITAPI["GitHub/Gitea API"]
     end
 
-    WF -- "1. Request OIDC token" --> OIDC
-    OIDC -- "2. Verify & issue" --> STS
-    STS -- "3. Temporary credentials" --> ROLE
-    ROLE -- "4. Terraform plan/apply" --> EC2
+    WF -- "AWS credentials<br/>(static keys)" --> AWS
     WF -- "Read/write state" --> STATE
     EC2 --- EBS
     EC2 -- "HTTPS (443)" --> EXT
-    PROF -- "Logs" --> CW
-    PROF -- "Remote access" --> SSM
     SG -. "Ingress: SSH only<br/>(restricted CIDRs)" .-> EC2
     SG -. "Egress: 443, 80, 53" .-> EXT
 
     style GH fill:#24292e,color:#fff
     style AWS fill:#232f3e,color:#fff
     style R2 fill:#f38020,color:#fff
-    style AUTH fill:#4a90d9,color:#fff
     style EXT fill:#2d5016,color:#fff
 ```
 
@@ -69,16 +54,11 @@ flowchart TB
 sequenceDiagram
     participant Dev as Developer
     participant GH as GitHub Actions
-    participant OIDC as GitHub OIDC
-    participant STS as AWS STS
     participant TF as Terraform
     participant R2 as Cloudflare R2
     participant AWS as AWS
 
     Dev->>GH: Push to main (*.tf)
-    GH->>OIDC: Request OIDC token
-    OIDC->>STS: Federated auth (JWT)
-    STS-->>GH: Temporary credentials
     GH->>R2: terraform init (load state)
     R2-->>GH: Current state
     GH->>TF: terraform plan
@@ -101,22 +81,17 @@ sequenceDiagram
 | **Security Group** | SSH ingress (restricted CIDRs), HTTPS/HTTP/DNS egress |
 | **Key Pair** | SSH public key for instance access |
 | **User Data** | Automated bootstrap: Node.js, OpenClaw, systemd service |
-| **IAM OIDC Provider** | GitHub Actions federated auth (no static keys) |
-| **IAM Role** | `clawdbot-github-actions` — least-privilege Terraform role |
-| **Instance Profile** | `clawdbot-ec2-profile` — CloudWatch Logs + SSM access |
 
 ### Security Highlights
-- **OIDC federation** — no static AWS credentials in GitHub Secrets
 - **IMDSv2 enforced** (no v1 token requests)
 - **SSH restricted** to explicitly allowed CIDRs (default: none)
 - **Egress limited** to HTTPS (443), HTTP (80), and DNS (53)
 - **EBS encrypted** at rest
-- **Least-privilege IAM** — scoped to clawdbot resources only
-- **Instance profile** — EC2 uses IAM role, not baked-in credentials
 
 ## Prerequisites
 
 - AWS account with default VPC
+- IAM user with API keys (see [IAM Setup](#iam-setup) below)
 - [Cloudflare R2 bucket](https://developers.cloudflare.com/r2/) for Terraform state backend
 - GitHub repository with Actions enabled
 
@@ -131,21 +106,76 @@ sequenceDiagram
 
 ### IAM Setup
 
-The `iam.tf` file creates a GitHub Actions OIDC provider and deployment role automatically. For the **initial bootstrap** (first `terraform apply`), you need an IAM user with admin-level permissions to create the OIDC provider and roles. After that, the GitHub Actions workflow uses OIDC federation — no static keys needed.
+This repo does **not** create IAM resources — users, roles, policies, and keys are managed outside of Terraform for now. You need an IAM user with API keys that have the minimum permissions to build what's in this repo.
 
 <details>
-<summary>Bootstrap IAM Policy (first apply only)</summary>
+<summary>Minimum IAM Policy (scoped to this repo's resources)</summary>
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "EC2Deploy",
+      "Sid": "EC2Management",
       "Effect": "Allow",
       "Action": [
-        "ec2:*",
-        "iam:*"
+        "ec2:RunInstances",
+        "ec2:TerminateInstances",
+        "ec2:StartInstances",
+        "ec2:StopInstances",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "ec2:DescribeImages",
+        "ec2:DescribeVolumes",
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeKeyPairs",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeInstanceAttribute",
+        "ec2:ModifyInstanceAttribute",
+        "ec2:DescribeInstanceTypes",
+        "ec2:DescribeTags",
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeAccountAttributes",
+        "ec2:CreateTags",
+        "ec2:DeleteTags"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecurityGroupManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateSecurityGroup",
+        "ec2:DeleteSecurityGroup",
+        "ec2:AuthorizeSecurityGroupIngress",
+        "ec2:AuthorizeSecurityGroupEgress",
+        "ec2:RevokeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress",
+        "ec2:DescribeSecurityGroupRules"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "KeyPairManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateKeyPair",
+        "ec2:DeleteKeyPair",
+        "ec2:ImportKeyPair"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EBSManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateVolume",
+        "ec2:DeleteVolume",
+        "ec2:AttachVolume",
+        "ec2:DetachVolume",
+        "ec2:ModifyVolume"
       ],
       "Resource": "*"
     }
@@ -153,9 +183,11 @@ The `iam.tf` file creates a GitHub Actions OIDC provider and deployment role aut
 }
 ```
 
-> ⚠️ Scope this down or delete the bootstrap user after the OIDC provider is created.
+> **Tip:** Add `"Condition": {"StringEquals": {"aws:RequestedRegion": "us-west-2"}}` to restrict operations to your deployment region.
 
 </details>
+
+**Future improvement:** Replace static keys with [GitHub Actions OIDC federation](https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services) for keyless authentication.
 
 ## GitHub Actions Setup
 
@@ -165,7 +197,8 @@ Go to **Settings → Secrets and variables → Actions** and add:
 
 | Secret | Description |
 |--------|-------------|
-| `AWS_ROLE_ARN` | ARN of `clawdbot-github-actions` role (after bootstrap) |
+| `AWS_ACCESS_KEY_ID` | IAM user access key |
+| `AWS_SECRET_ACCESS_KEY` | IAM user secret key |
 | `BUCKET_NAME` | R2 bucket name |
 | `BUCKET_KEY` | State file path (e.g. `clawdbot-aws/terraform.tfstate`) |
 | `BUCKET_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
@@ -173,8 +206,6 @@ Go to **Settings → Secrets and variables → Actions** and add:
 | `BUCKET_SECRET_ACCESS_KEY` | R2 API secret key |
 | `SSH_PUBLIC_KEY` | Your SSH public key (full key string) |
 | `ALLOWED_SSH_CIDRS` | JSON array of CIDRs, e.g. `["1.2.3.4/32"]` |
-
-> **Note:** After OIDC is set up, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are no longer needed.
 
 ### Workflows
 
@@ -215,8 +246,7 @@ The bootstrap script (userdata.sh) automatically installs Node.js, OpenClaw, and
 | `node_version` | `22` | Node.js major version |
 | `subnet_id` | `""` | Subnet (empty = default VPC) |
 | `allowed_ssh_cidrs` | `[]` | SSH access CIDRs |
-| `github_repo` | `drewpypro/clawdbot-aws` | Repo for OIDC federation |
-| `state_bucket` | `""` | R2/S3 bucket for TF state |
+| `ami_owner` | `136693071363` | AMI owner (Debian official) |
 
 ## Optional: Cloudflare DNS
 

@@ -6,7 +6,7 @@
 # --- AMI Data Source (Latest Debian 12 Bookworm) ---
 data "aws_ami" "debian" {
   most_recent = true
-  owners      = ["136693071363"] # Debian official
+  owners      = [var.ami_owner]
 
   filter {
     name   = "name"
@@ -42,7 +42,6 @@ resource "aws_instance" "clawdbot" {
   key_name               = aws_key_pair.clawdbot.key_name
   vpc_security_group_ids = [aws_security_group.clawdbot.id]
   subnet_id              = var.subnet_id != "" ? var.subnet_id : null
-  iam_instance_profile   = aws_iam_instance_profile.clawdbot.name
 
   root_block_device {
     volume_size           = var.root_volume_size
