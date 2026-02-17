@@ -1,0 +1,58 @@
+name: terraform build workflow
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '*.tf'
+
+
+env:
+  AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
+  AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+  BUCKET_NAME: ${{ secrets.BUCKET_NAME }}
+  BUCKET_KEY: ${{ secrets.BUCKET_KEY }}
+  BUCKET_ENDPOINT: ${{ secrets.BUCKET_ENDPOINT }}
+  BUCKET_ACCESS_KEY_ID: ${{ secrets.BUCKET_ACCESS_KEY_ID }}
+  BUCKET_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET_ACCESS_KEY }}
+  
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/drewpypro/kube-aws-istio:latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Verify Backend
+        env:
+          AWS_ACCESS_KEY_ID: ${{secrets.BUCKET_ACCESS_KEY_ID}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.BUCKET_SECRET_ACCESS_KEY}}
+          BUCKET_NAME: ${{ secrets.BUCKET_NAME }}
+          BUCKET_KEY: ${{ secrets.BUCKET_KEY }}
+          BUCKET_ENDPOINT: ${{ secrets.BUCKET_ENDPOINT }}
+          BUCKET_ACCESS_KEY_ID: ${{ secrets.BUCKET_ACCESS_KEY_ID }}
+          BUCKET_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET_ACCESS_KEY }}
+        run: |
+          curl https://ifconfig.me/ip
+          aws s3 ls s3://$BUCKET_NAME --endpoint-url $BUCKET_ENDPOINT
+
+      - name: terraform init
+        run: |
+          terraform init \
+            -backend-config="bucket=$BUCKET_NAME" \
+            -backend-config="key=$BUCKET_KEY" \
+            -backend-config="endpoint=$BUCKET_ENDPOINT" \
+            -backend-config="access_key=$BUCKET_ACCESS_KEY_ID" \
+            -backend-config="secret_key=$BUCKET_SECRET_ACCESS_KEY"
+
+      - name: terraform plan
+        run: |
+          terraform plan
+
+      - name: terraform apply
+        run: |
+          terraform apply -auto-approve
