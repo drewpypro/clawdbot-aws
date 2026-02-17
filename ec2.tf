@@ -3,10 +3,27 @@
 # Instance Type: t3.medium (2 vCPU, 4 GB RAM)
 # =============================================================================
 
+# --- Default VPC & Subnet ---
+data "aws_vpc" "default" {
+  default = true
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
+  }
+
+  filter {
+    name   = "default-for-az"
+    values = ["true"]
+  }
+}
+
 # --- AMI Data Source (Latest Debian 12 Bookworm) ---
 data "aws_ami" "debian" {
   most_recent = true
-  owners      = ["136693071363"] # Debian official
+  owners      = [var.ami_owner]
 
   filter {
     name   = "name"
@@ -41,8 +58,7 @@ resource "aws_instance" "clawdbot" {
   instance_type          = var.instance_type
   key_name               = aws_key_pair.clawdbot.key_name
   vpc_security_group_ids = [aws_security_group.clawdbot.id]
-  subnet_id              = var.subnet_id != "" ? var.subnet_id : null
-  iam_instance_profile   = aws_iam_instance_profile.clawdbot.name
+  subnet_id              = data.aws_subnets.default.ids[0]
 
   root_block_device {
     volume_size           = var.root_volume_size

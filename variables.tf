@@ -31,26 +31,14 @@ variable "node_version" {
   default     = "22"
 }
 
-variable "subnet_id" {
-  type        = string
-  description = "Subnet ID for EC2 instance (leave empty for default VPC)"
-  default     = ""
-}
-
 variable "allowed_ssh_cidrs" {
   type        = list(string)
   description = "CIDR blocks allowed to SSH into the instance"
   default     = [] # Must be set explicitly - no open SSH by default
 }
 
-variable "github_repo" {
+variable "ami_owner" {
   type        = string
-  description = "GitHub repository (owner/repo) for OIDC federation"
-  default     = "drewpypro/clawdbot-aws"
-}
-
-variable "state_bucket" {
-  type        = string
-  description = "S3/R2 bucket name for Terraform state"
-  default     = ""
+  description = "AWS account ID for AMI owner (Debian official: 136693071363)"
+  default     = "136693071363"
 }
