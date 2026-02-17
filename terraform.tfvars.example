@@ -1,0 +1,21 @@
+# =============================================================================
+# Clawdbot AWS — Example Variables
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values.
+# Alternatively, set these via GitHub Secrets (TF_VAR_* prefix).
+
+aws_region       = "us-west-2"
+instance_type    = "t3.medium"
+root_volume_size = 30
+node_version     = "22"
+
+# Leave empty to use default VPC subnet
+subnet_id = ""
+
+# SSH public key (full key, e.g. "ssh-ed25519 AAAA... user@host")
+ssh_public_key = ""
+
+# CIDRs allowed to SSH in (empty = no SSH access)
+allowed_ssh_cidrs = [
+  # "1.2.3.4/32",  # Your IP
+]
