@@ -42,3 +42,15 @@ variable "allowed_ssh_cidrs" {
   description = "CIDR blocks allowed to SSH into the instance"
   default     = [] # Must be set explicitly - no open SSH by default
 }
+
+variable "github_repo" {
+  type        = string
+  description = "GitHub repository (owner/repo) for OIDC federation"
+  default     = "drewpypro/clawdbot-aws"
+}
+
+variable "state_bucket" {
+  type        = string
+  description = "S3/R2 bucket name for Terraform state"
+  default     = ""
+}
