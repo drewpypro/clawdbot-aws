@@ -3,23 +3,6 @@
 # Instance Type: t3.medium (2 vCPU, 4 GB RAM)
 # =============================================================================
 
-# --- Default VPC & Subnet ---
-data "aws_vpc" "default" {
-  default = true
-}
-
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
-
-  filter {
-    name   = "default-for-az"
-    values = ["true"]
-  }
-}
-
 # --- AMI Data Source (Latest Debian 12 Bookworm) ---
 data "aws_ami" "debian" {
   most_recent = true
