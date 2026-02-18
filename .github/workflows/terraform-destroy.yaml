@@ -17,6 +17,7 @@ env:
 jobs:
   terraform-destroy:
     runs-on: ubuntu-latest
+    environment: destroy
     container:
       image: ghcr.io/drewpypro/kube-aws-istio:latest
 
