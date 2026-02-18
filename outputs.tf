@@ -31,4 +31,3 @@ output "ssh_command" {
   value       = "ssh -i <your-key> admin@${aws_instance.clawdbot.public_ip}"
   description = "SSH command to connect (Debian uses 'admin' user)"
 }
-
