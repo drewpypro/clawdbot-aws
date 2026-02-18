@@ -1,7 +1,7 @@
-name: terraform build workflow
+name: terraform plan (PR)
 
 on:
-  push:
+  pull_request:
     branches:
       - main
     paths:
@@ -24,7 +24,7 @@ env:
   TF_VAR_allowed_ssh_cidrs: ${{ secrets.ALLOWED_SSH_CIDRS }}
 
 jobs:
-  terraform-deploy:
+  terraform-plan:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/drewpypro/kube-aws-istio:latest
@@ -32,14 +32,6 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
-      - name: Verify Backend
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.BUCKET_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.BUCKET_SECRET_ACCESS_KEY }}
-        run: |
-          echo "Runner IP: $(curl -s https://ifconfig.me/ip)"
-          aws s3 ls s3://$BUCKET_NAME --endpoint-url $BUCKET_ENDPOINT
 
       - name: Terraform Init
         run: |
@@ -53,5 +45,5 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve
+      - name: Terraform Plan
+        run: terraform plan
