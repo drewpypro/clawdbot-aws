@@ -1,5 +1,11 @@
 # Branch Protection & Rulesets Guide
 
+> **⚠️ Disclaimer:** This document was collaboratively created by a human ([drewpypro](https://github.com/drewpypro)) and an AI bot ([drewpy-code-agent](https://github.com/drewpy-code-agent)) running [OpenClaw](https://github.com/openclaw/openclaw). While we've tested these configurations hands-on, **take everything with a grain of salt**. Further testing is needed and additional learning opportunities remain. Always validate against [official GitHub documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets) before applying to production repositories.
+>
+> **⚠️ Caution — Financial & Liability Risk:** This repo deploys infrastructure to AWS using Terraform. Running AI-managed infrastructure automation carries **real financial risk** (unexpected resources, forgotten teardowns, runaway costs) and **personal liability**. We don't recommend replicating this setup without thorough understanding of both the AI tooling and AWS billing implications. This is a learning exercise, not a production blueprint.
+>
+> **📝 Note on screenshots:** All screenshots in this document were taken by the human collaborator, pasted into Discord in order (without filenames), and the AI bot analyzed each image using vision capabilities to automatically name, sort, and place them in the appropriate documentation sections.
+
 This document covers the GitHub branch protection ruleset configuration for `drewpypro/clawdbot-aws`, including what each setting does, why we chose our configuration, and lessons learned during setup.
 
 ---
@@ -24,7 +30,7 @@ We use GitHub **repository rulesets** (the newer replacement for legacy branch p
 
 Our ruleset is named **`main`** and is set to **Active** enforcement.
 
-![Ruleset Overview](images/ruleset-overview.png)
+<img src="images/ruleset-overview.png" alt="Ruleset Overview" width="700">
 
 ---
 
@@ -61,7 +67,7 @@ The ruleset targets the **Default** branch (`main`). All rules apply only to pus
 
 All changes to `main` must go through a pull request. Direct pushes are blocked.
 
-![PR and Merge Settings](images/pr-merge-settings.png)
+<img src="images/pr-merge-settings.png" alt="PR and Merge Settings" width="700">
 
 | Setting | Value | Description |
 |---------|-------|-------------|
@@ -89,7 +95,7 @@ The `CODEOWNERS` file (in the repo root) defines who must approve changes to spe
 
 Status checks ensure that automated tests pass before a PR can be merged.
 
-![Status Checks Configuration](images/status-checks.png)
+<img src="images/status-checks.png" alt="Status Checks Configuration" width="700">
 
 | Setting | Value | Description |
 |---------|-------|-------------|
@@ -116,13 +122,13 @@ jobs:
 
 The required check is `terraform-plan` (the job key). GitHub reports status checks by job name.
 
-### Path-Filtered Workflows
+### Path-Filtered Workflows (Solved)
 
-Our `terraform-plan` workflow only triggers on changes to `*.tf` and `userdata.sh` files. This means:
+Initially, our `terraform-plan` workflow only triggered on changes to `*.tf` and `userdata.sh` files. This caused a problem: PRs that only changed non-TF files (docs, workflows, CODEOWNERS) would never trigger the required status check, leaving the PR stuck forever.
 
-- **PRs that only change non-TF files** (like `.github/workflows/`, `docs/`, `CODEOWNERS`) will **never trigger the check**, and the PR will be stuck in a "waiting for status check" state.
-- **Workaround:** Temporarily remove the required status check from the ruleset, merge the PR, then re-add it. This is acceptable for infrastructure/config-only PRs.
-- **Alternative:** Add a path-agnostic "pass-through" job that always succeeds, or broaden the path filter.
+**Our solution:** We removed the path filter from the workflow trigger and added runtime detection instead. The workflow now runs on **all PRs**, but only executes `terraform init/validate/plan` when it detects actual Terraform file changes via `git diff`. Non-TF PRs get a passing check with skipped steps.
+
+See the [Conditional Status Checks](#conditional-status-checks-path-filtered-workaround) section below for implementation details.
 
 ---
 
@@ -148,23 +154,23 @@ Beyond branch protection, we use **GitHub Environments** to gate destructive ope
 
 **Repository overview** — The deployments section shows active environments and their status. Here you can see `prod` (deployed) and `destroy` (pending):
 
-![Repository Deployments](images/env-protection-settings.png)
+<img src="images/env-protection-settings.png" alt="Repository Deployments" width="350">
 
 **Deployment gate** — When a destroy workflow runs, it shows as "Ready to deploy" and waits for approval:
 
-![Deployment Gate](images/env-deploy-gate.png)
+<img src="images/env-deploy-gate.png" alt="Deployment Gate" width="700">
 
 **Workflow waiting for approval** — The Actions summary shows the job is paused, waiting for a reviewer to approve the deployment:
 
-![Approval UI](images/env-approval-ui.png)
+<img src="images/env-approval-ui.png" alt="Approval UI" width="700">
 
 **Job-level view** — The individual job shows the "Waiting for review" status with a link to review pending deployments:
 
-![Deploy Success](images/env-deploy-success.png)
+<img src="images/env-deploy-success.png" alt="Deploy Success" width="700">
 
 **Review dialog** — Reviewers see this modal where they can approve or reject the deployment. Only designated reviewers (configured in the environment settings) can approve:
 
-![Skip Step](images/env-skip-step.png)
+<img src="images/env-skip-step.png" alt="Review Dialog" width="500">
 
 ### Why This Matters
 
@@ -304,7 +310,19 @@ The required status check must match the **job name** in your workflow YAML, not
 ### 5. Path Filters Can Block PRs
 If your workflow only triggers on specific file paths, PRs that don't touch those paths will never get the required status check. Plan for this with config-only or docs-only PRs.
 
-### 6. Force Push Policy
+### 6. Supply Chain Risks
+Third-party GitHub Actions (like `dorny/paths-filter`) introduce supply chain risk. Pin actions to specific commit SHAs rather than version tags when possible, and audit action source code before use. A compromised action could exfiltrate secrets from your workflow.
+
+### 7. Secret Sprawl
+Every GitHub Actions secret (AWS keys, API tokens) is a potential attack vector. Minimize the number of secrets, use short-lived credentials where possible (e.g., OIDC for AWS instead of static keys), and regularly audit who has access to repository settings.
+
+### 8. Audit Logging Gaps
+GitHub's free tier has limited audit logging. For compliance-sensitive workflows, consider GitHub Enterprise for full audit log streaming. At minimum, monitor the Security tab and enable Dependabot alerts.
+
+### 9. Bot Token Compromise
+If the bot's PAT is compromised, an attacker can push code, create PRs, and potentially merge them (if approvals are already present). Mitigations: use fine-grained PATs with minimal scope, set expiration dates, rotate regularly, and monitor the bot account's activity log.
+
+### 10. Force Push Policy
 - **`main` branch:** Never. Block force pushes is enabled.
 - **Feature branches:** Acceptable for history cleanup (e.g., adding GPG signatures to existing commits via interactive rebase).
 

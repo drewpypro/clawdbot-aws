@@ -174,19 +174,82 @@ openclaw channels remove
 
 ### Discord Bot Setup
 
-1. Create a bot at [Discord Developer Portal](https://discord.com/developers/applications)
-2. Get the bot token
-3. Run `openclaw channels add` and select Discord
-4. Provide the bot token and configure intents
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications) and create a new application
+2. Navigate to **Bot** → **Add Bot**
+3. Under **Privileged Gateway Intents**, enable:
+   - **Message Content Intent** (required to read message text)
+   - **Server Members Intent** (optional, for member lookups)
+4. Copy the bot token
+5. Generate an invite URL under **OAuth2 → URL Generator**:
+   - Scopes: `bot`, `applications.commands`
+   - Permissions: `Send Messages`, `Read Message History`, `Add Reactions`, `Manage Messages` (adjust as needed)
+6. Invite the bot to your server using the generated URL
+7. Configure in OpenClaw:
+   ```bash
+   openclaw channels add    # Select Discord, paste bot token
+   ```
 
-### Signal Setup
+**References:**
+- [Discord Developer Portal](https://discord.com/developers/applications)
+- [Discord.js Guide — Setting up a bot](https://discordjs.guide/preparations/setting-up-a-bot-application.html)
+- [Discord Bot Permissions Calculator](https://discordapi.com/permissions.html)
+- [Discord Gateway Intents](https://discord.com/developers/docs/topics/gateway#gateway-intents)
 
-Signal requires `signal-cli` installed separately:
+### Signal Setup (signal-cli)
+
+Signal requires [signal-cli](https://github.com/AsamK/signal-cli) installed separately on the host.
+
+**1. Install dependencies:**
 ```bash
-# Install signal-cli (see https://github.com/AsamK/signal-cli)
-# Then configure via openclaw
-openclaw channels add    # Select Signal
+sudo apt install default-jre-headless
 ```
+
+**2. Install signal-cli:**
+```bash
+# Check latest version at https://github.com/AsamK/signal-cli/releases
+SIGNAL_CLI_VERSION="0.13.12"
+wget "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}-Linux.tar.gz"
+sudo tar xf "signal-cli-${SIGNAL_CLI_VERSION}-Linux.tar.gz" -C /opt
+sudo ln -sf "/opt/signal-cli-${SIGNAL_CLI_VERSION}/bin/signal-cli" /usr/local/bin/signal-cli
+signal-cli --version
+```
+
+**3. Register or link an account:**
+
+Option A — Link to your phone (recommended for personal use):
+```bash
+signal-cli link -n "clawdbot"
+# Generates a URI — scan as QR code from Signal app:
+# Settings → Linked Devices → Link New Device
+```
+
+Option B — Register a new number (requires a phone number that can receive SMS/voice):
+```bash
+signal-cli -u +1YOURNUMBER register
+signal-cli -u +1YOURNUMBER verify CODE_FROM_SMS
+```
+
+**4. Test:**
+```bash
+signal-cli -u +1YOURNUMBER send -m "Hello from clawdbot!" -u recipient_username
+signal-cli -u +1YOURNUMBER receive
+```
+
+**5. Configure in OpenClaw:**
+```bash
+openclaw channels add    # Select Signal, follow prompts
+```
+
+**Security best practices:**
+- Store your Signal account number in an environment file, never hardcode it
+- Use usernames (`-u`) instead of phone numbers where possible
+- The `signal-cli` data directory (`~/.local/share/signal-cli/`) contains private keys — protect it
+- `signal-cli receive` must run periodically to fetch messages (OpenClaw cron or manual)
+
+**References:**
+- [signal-cli GitHub](https://github.com/AsamK/signal-cli)
+- [signal-cli Wiki](https://github.com/AsamK/signal-cli/wiki)
+- [Signal CLI man page](https://github.com/AsamK/signal-cli/blob/master/man/signal-cli.1.adoc)
 
 ---
 
