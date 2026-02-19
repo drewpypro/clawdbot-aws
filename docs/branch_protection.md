@@ -260,7 +260,7 @@ This way the `terraform-plan` check always reports a status (satisfying the requ
 
 **2. Third-party path filter actions**
 
-Alternative approaches exist (e.g., [dorny/paths-filter](https://github.com/dorny/paths-filter)), but we chose the pass-through job approach above to avoid introducing external supply chain dependencies. See [Lesson #6](#6-supply-chain-risks) on supply chain risks — any third-party action you add to your workflow has access to your repository secrets and could be compromised.
+Alternative approaches exist, such as [dorny/paths-filter](https://github.com/dorny/paths-filter), which provides a reusable action for detecting changed files. This can simplify workflow logic compared to hand-rolling `git diff` commands. As with any third-party GitHub Action, pin to a specific commit SHA and review the source — see [Lesson #6](#6-supply-chain-risks).
 
 **3. Admin bypass** — Repo admins can merge regardless of status check requirements. Quick but doesn't scale.
 
@@ -293,7 +293,7 @@ The required status check must match the **job name** in your workflow YAML, not
 If your workflow only triggers on specific file paths, PRs that don't touch those paths will never get the required status check. Plan for this with config-only or docs-only PRs.
 
 ### 6. Supply Chain Risks
-Third-party GitHub Actions (like `dorny/paths-filter`) introduce supply chain risk. Pin actions to specific commit SHAs rather than version tags when possible, and audit action source code before use. A compromised action could exfiltrate secrets from your workflow.
+Third-party GitHub Actions introduce supply chain risk. Pin actions to specific commit SHAs rather than version tags when possible, and audit action source code before use. A compromised action could exfiltrate secrets from your workflow.
 
 ### 7. Secret Sprawl
 Every GitHub Actions secret (AWS keys, API tokens) is a potential attack vector. Minimize the number of secrets, use short-lived credentials where possible (e.g., OIDC for AWS instead of static keys), and regularly audit who has access to repository settings.
