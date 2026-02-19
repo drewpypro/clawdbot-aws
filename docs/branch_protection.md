@@ -152,6 +152,110 @@ Beyond branch protection, we use **GitHub Environments** to gate destructive ope
 
 ---
 
+## Bot Account Security
+
+When using a bot/service account for CI/CD automation, follow these security practices:
+
+### Dedicated Account
+Create a dedicated GitHub account for the bot (e.g., `drewpy-code-agent`) rather than using a personal account's token. This provides:
+- **Auditability** — bot actions are clearly attributable in commit/PR history
+- **Least privilege** — the bot account only has access to repos it needs
+- **Revocability** — you can disable the bot without affecting personal access
+
+### Personal Access Token (PAT) Scoping
+
+| Token Type | Scope | Risk |
+|-----------|-------|------|
+| **Fine-grained PAT** (recommended) | Scoped to specific repos | Lowest risk — can only access named repositories |
+| **Classic PAT** with `repo` scope | All repos the account can access | ⚠️ Can read/write ANY repo the account has access to, including public repos |
+
+**⚠️ Critical warning about classic PATs:** A classic `repo`-scoped token grants read access to all public repositories and write access to any repo where the bot is a collaborator. If the bot accepts a repository invitation (something you should **never** allow), an attacker could:
+1. Invite the bot to a malicious repository
+2. Coax the bot into pushing commits containing sensitive data (secrets, tokens, source code)
+3. Create data exfiltration paths through git push
+
+**Mitigations:**
+- Use **fine-grained PATs** scoped to only the repos the bot needs ([docs](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#fine-grained-personal-access-tokens))
+- Never allow the bot to accept repository invitations automatically
+- Set token expiration dates and rotate regularly
+- Monitor the bot account's [security log](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/reviewing-your-security-log) for unexpected activity
+- Consider using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) instead of a PAT for even tighter scoping (per-repo installation, no implicit public repo access)
+
+### Self-Approval Limitation
+
+GitHub prevents any user (including bots) from approving their own pull requests. This means:
+- A bot that creates a PR **cannot** also approve it
+- At least one *different* collaborator must approve before merge
+- This is a security feature, not a bug — it enforces separation of duties
+
+---
+
+## Conditional Status Checks (Path-Filtered Workaround)
+
+GitHub's required status checks don't natively support conditional requirements based on file paths. If a required check's workflow only triggers on `*.tf` files, docs-only PRs will be stuck forever waiting.
+
+### Solutions
+
+**1. Path-based pass-through job (recommended)**
+
+Add a lightweight job to your workflow that always runs, regardless of paths changed. Use the same job name as the required check:
+
+```yaml
+on:
+  pull_request:
+    # No path filter — runs on ALL PRs
+
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for TF changes
+        id: changes
+        run: |
+          TF_CHANGES=$(git diff --name-only origin/main...HEAD | grep -cE '\.(tf|sh)$' || true)
+          echo "has_tf=$([[ $TF_CHANGES -gt 0 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Terraform Init
+        if: steps.changes.outputs.has_tf == 'true'
+        run: terraform init
+
+      - name: Terraform Plan
+        if: steps.changes.outputs.has_tf == 'true'
+        run: terraform plan
+```
+
+This way the `terraform-plan` check always reports a status (satisfying the requirement), but only actually runs terraform when relevant files changed.
+
+**2. Use `dorny/paths-filter` action**
+
+The [paths-filter](https://github.com/dorny/paths-filter) action provides cleaner conditional logic:
+
+```yaml
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            terraform:
+              - '*.tf'
+              - 'userdata.sh'
+      - name: Terraform Plan
+        if: steps.filter.outputs.terraform == 'true'
+        run: |
+          terraform init
+          terraform plan
+```
+
+**3. Admin bypass** — Repo admins can merge regardless of status check requirements. Quick but doesn't scale.
+
+---
+
 ## Lessons Learned
 
 ### 1. Bypass = Exempt from EVERYTHING
