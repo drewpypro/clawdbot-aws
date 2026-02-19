@@ -166,8 +166,8 @@ This checks for common misconfigurations like exposed bindings, missing auth, an
 - Regularly rotate the bot token via the [Developer Portal](https://discord.com/developers/applications)
 
 **Rate limiting and concurrency controls:**
-- `agents.defaults.maxConcurrent` (currently 4) limits parallel agent execution
-- `agents.defaults.subagents.maxConcurrent` (currently 8) limits parallel sub-agents
+- `agents.defaults.maxConcurrent` limits parallel agent execution
+- `agents.defaults.subagents.maxConcurrent` limits parallel sub-agents
 - Set Anthropic API spending limits in the [Anthropic Console](https://console.anthropic.com)
 - For semi-public deployments, consider a LiteLLM proxy for centralized rate limiting, cost controls, and audit logging
 
@@ -204,15 +204,15 @@ source ~/.env_secrets
 
 ### Secrets Inventory
 
-For this deployment, the following secrets exist:
+A typical OpenClaw deployment may include the following secrets:
 
-| Secret | Location | Purpose | Rotation |
-|--------|----------|---------|----------|
-| Anthropic API key | OpenClaw config | AI model access | Every 90 days — set a calendar reminder |
-| Discord bot token | OpenClaw config | Discord channel | Every 90 days — regenerate in [Developer Portal](https://discord.com/developers/applications) |
-| Signal account | `~/.env_secrets` | Signal messaging | N/A (tied to phone number) — rotate on compromise only |
-| GitHub PAT | `~/.env_secrets` | Repo operations | Every 90 days — use fine-grained PATs with built-in expiry dates |
-| AWS credentials | GitHub Secrets | Terraform (CI only) | **Never use static keys** — migrate to [OIDC federation](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services). If you must use keys, rotate every 90 days |
+| Secret | Purpose | Rotation |
+|--------|---------|----------|
+| Anthropic API key | AI model access | Every 90 days — set a calendar reminder |
+| Discord bot token | Discord channel integration | Every 90 days — regenerate in [Developer Portal](https://discord.com/developers/applications) |
+| Signal account credentials | Signal messaging | Rotate on compromise only |
+| GitHub PAT | Repo operations | Every 90 days — use fine-grained PATs with built-in expiry dates |
+| AWS credentials | Terraform (CI only) | **Never use static keys** — migrate to [OIDC federation](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services). If you must use keys, rotate every 90 days |
 
 ### Best Practices
 
@@ -347,10 +347,6 @@ Sandbox mode controls whether tool execution runs on the host or in a Docker con
 openclaw config get agents.defaults.sandbox
 ```
 
-Our deployment uses `mode: "non-main"` with `scope: "session"` and `docker.network: "none"`. This means:
-- **Main session** (TUI/CLI) — runs on the host with full access
-- **All other sessions** (Discord channels, Signal contacts, sub-agents) — run in per-session Docker sandboxes with no network access
-
 Options:
 - **`off`** — Everything runs on host (dangerous)
 - **`non-main`** (recommended) — Isolates channel/sub-agent sessions in Docker
@@ -364,27 +360,25 @@ OpenClaw session scoping controls whether conversations share context across cha
 - Discord guild channel sessions are isolated per channel (`agent:<agentId>:discord:channel:<channelId>`)
 - DM sessions can share the main session (`session.dmScope=main`) or be fully isolated (`per-channel-peer`)
 
-If DMs are enabled and share the main session, context can bleed between your TUI session and DM conversations. Our deployment has DMs disabled (`dmPolicy: "disabled"`), which mitigates this. For defense-in-depth, explicitly set `session.dmScope` to `per-channel-peer`.
+If DMs are enabled and share the main session, context can bleed between your TUI session and DM conversations. For defense-in-depth, consider disabling DMs (`dmPolicy: "disabled"`) or explicitly setting `session.dmScope` to `per-channel-peer`.
 
 ### Command Deny List (denyCommands)
 
-`gateway.nodes.denyCommands` blocks specific agent commands by exact name matching. Our deployment denies `camera.snap`, `camera.clip`, `screen.record`, `calendar.add`, `contacts.add`, `reminders.add` — but these commands only exist when mobile nodes (iOS/Android) are paired via the Bridge. On a headless Linux server with only Discord and Signal, these entries have no effect.
+`gateway.nodes.denyCommands` blocks specific agent commands by exact name matching. Commands like `camera.snap`, `camera.clip`, `screen.record`, `calendar.add`, `contacts.add`, `reminders.add` only apply when mobile nodes (iOS/Android) are paired via the Bridge. On a headless Linux server, these entries have no effect.
 
-For a Discord/Signal-only deployment, the meaningful security boundaries are:
+For a headless deployment, the meaningful security boundaries are:
 - `tools.elevated.enabled: false` (no sudo/root)
 - `commands.native: false` (no slash commands)
-- `sandbox.mode: "non-main"` (channel sessions sandboxed)
-- `docker.network: "none"` (sandboxed sessions can't reach the network)
+- `sandbox.mode` configured appropriately for your threat model
+- `docker.network: "none"` on sandboxed sessions to prevent data exfiltration
 
 ---
 
 ## Recommended Architecture: Isolate Channel Agents
 
-> **This is the single highest-impact security improvement available** beyond what's currently configured.
+> **This is the single highest-impact security improvement available** for most OpenClaw deployments.
 
-**Current state:** The main agent session (with full unsandboxed host access) handles Discord messages. While `sandbox.mode: "non-main"` sandboxes non-main sessions, the main session itself is not sandboxed.
-
-**Recommended change:** Route Discord and Signal to dedicated sub-agents with `sandbox.mode: "always"` and `docker.network: "none"`. Reserve the main session for direct TUI/CLI use only.
+The idea is simple: route untrusted channel input (Discord, Signal, etc.) to dedicated sub-agents running in sandboxed Docker containers with no network access. Reserve the main session for direct TUI/CLI use only.
 
 ```
 Main session (TUI/CLI)  ← unsandboxed, direct host access, owner-only
@@ -392,9 +386,7 @@ Discord sub-agent       ← sandboxed, docker network: none
 Signal sub-agent        ← sandboxed, docker network: none
 ```
 
-This converts the main session from "directly exposed to untrusted channel input" to "only accessible via local TUI." Even if a prompt injection succeeds via Discord, the attacker is trapped in a network-isolated Docker container.
-
-**Status:** This is a future configuration change, not yet implemented. Documented here for planning purposes.
+This ensures that even if a prompt injection succeeds via a messaging channel, the attacker is trapped in a network-isolated Docker container with no access to the host filesystem or credentials.
 
 ---
 
