@@ -144,6 +144,28 @@ Beyond branch protection, we use **GitHub Environments** to gate destructive ope
 
 3. When the workflow is triggered, it pauses at the environment gate and waits for approval in the GitHub Actions UI.
 
+### Visual Walkthrough
+
+**Repository overview** — The deployments section shows active environments and their status. Here you can see `prod` (deployed) and `destroy` (pending):
+
+![Repository Deployments](images/env-protection-settings.png)
+
+**Deployment gate** — When a destroy workflow runs, it shows as "Ready to deploy" and waits for approval:
+
+![Deployment Gate](images/env-deploy-gate.png)
+
+**Workflow waiting for approval** — The Actions summary shows the job is paused, waiting for a reviewer to approve the deployment:
+
+![Approval UI](images/env-approval-ui.png)
+
+**Job-level view** — The individual job shows the "Waiting for review" status with a link to review pending deployments:
+
+![Deploy Success](images/env-deploy-success.png)
+
+**Review dialog** — Reviewers see this modal where they can approve or reject the deployment. Only designated reviewers (configured in the environment settings) can approve:
+
+![Skip Step](images/env-skip-step.png)
+
 ### Why This Matters
 
 - **Prevents accidental destruction:** Even if someone (or a bot) triggers the destroy workflow, it won't execute until a human approves it.
