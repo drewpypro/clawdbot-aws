@@ -6,6 +6,18 @@
 
 ---
 
+## TL;DR
+
+If you read nothing else:
+1. **Never use exec `full` mode** — it gives the AI unsupervised shell access. Use `allowlist` or `ask`.
+2. **Prompt injection is your #1 threat** — anyone who can message the bot could potentially manipulate it. Use channel/user allowlists.
+3. **Egress filter your network** — the bot only needs to reach Discord, Signal, GitHub, and Anthropic APIs. Block everything else outbound.
+4. **Rotate secrets every 90 days** — or better, use OIDC/IAM roles instead of static keys.
+5. **Set AWS billing alarms at $5-10** — don't find out about runaway costs from your credit card statement.
+6. **Run `openclaw security audit`** regularly — it catches common misconfigurations.
+
+---
+
 ## Table of Contents
 
 - [Threat Model](#threat-model)

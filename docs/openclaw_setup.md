@@ -391,30 +391,17 @@ openclaw gateway start
 
 ## Useful Commands
 
-| Command | Description |
-|---------|-------------|
-| `openclaw --version` | Show version |
-| `openclaw onboard` | First-time setup wizard |
-| `openclaw configure` | Reconfigure settings |
-| `openclaw gateway status` | Service + gateway status |
-| `openclaw gateway start` | Start the gateway service |
-| `openclaw gateway stop` | Stop the gateway service |
-| `openclaw gateway restart` | Restart the gateway |
-| `openclaw gateway run --verbose` | Run in foreground (debug) |
-| `openclaw gateway probe` | Full reachability probe |
-| `openclaw gateway usage-cost` | Usage and cost summary |
-| `openclaw doctor` | Health diagnostics |
-| `openclaw doctor --fix` | Auto-fix common issues |
-| `openclaw channels list` | List chat channels |
-| `openclaw channels add` | Add a channel |
-| `openclaw channels status --deep` | Detailed channel status |
-| `openclaw logs` | View gateway logs |
-| `openclaw logs --follow` | Stream logs live |
-| `openclaw sessions` | Session management |
-| `openclaw memory` | Memory commands |
-| `openclaw plugins` | Plugin management |
-| `openclaw reset` | ⚠️ Factory reset |
-| `openclaw dashboard` | Open the Control UI |
+The most common commands you'll use day-to-day:
+
+```bash
+openclaw gateway status          # Check if everything's running
+openclaw gateway restart         # Restart after config changes
+openclaw logs --follow           # Stream logs (debug issues)
+openclaw doctor --fix            # Auto-fix common problems
+openclaw channels status --deep  # Check channel connectivity
+```
+
+For the full command reference, run `openclaw --help` or `openclaw <command> --help`.
 
 ---
 
