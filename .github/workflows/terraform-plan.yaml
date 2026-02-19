@@ -1,4 +1,4 @@
-name: terraform plan (PR)
+name: terraform-plan
 
 on:
   pull_request:

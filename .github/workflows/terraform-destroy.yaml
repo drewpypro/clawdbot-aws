@@ -17,6 +17,7 @@ env:
 jobs:
   terraform-destroy:
     runs-on: ubuntu-latest
+    environment: destroy
     container:
       image: ghcr.io/drewpypro/kube-aws-istio:latest
 
@@ -43,3 +44,49 @@ jobs:
 
       - name: Terraform Destroy
         run: terraform destroy -auto-approve
+
+      - name: Check for orphaned volumes
+        if: always()
+        run: |
+          echo "🔍 Checking for orphaned clawdbot EBS volumes..."
+          REGION="${AWS_DEFAULT_REGION:-us-west-2}"
+          ORPHANS=$(aws ec2 describe-volumes \
+            --region "$REGION" \
+            --filters "Name=tag:Project,Values=clawdbot" "Name=status,Values=available" \
+            --query 'Volumes[*].[VolumeId,Size,CreateTime]' \
+            --output text)
+          
+          if [ -z "$ORPHANS" ]; then
+            echo "✅ No orphaned clawdbot volumes found"
+          else
+            echo "⚠️ Found orphaned clawdbot volumes:"
+            echo "$ORPHANS"
+            echo ""
+            echo "🗑️ Deleting orphaned volumes..."
+            for vol_id in $(echo "$ORPHANS" | awk '{print $1}'); do
+              echo "  Deleting $vol_id..."
+              aws ec2 delete-volume --region "$REGION" --volume-id "$vol_id"
+            done
+            echo "✅ Orphan cleanup complete"
+          fi
+
+      - name: Check for any untagged available volumes
+        if: always()
+        run: |
+          echo "🔍 Checking for untagged available volumes (potential orphans)..."
+          REGION="${AWS_DEFAULT_REGION:-us-west-2}"
+          ALL_AVAILABLE=$(aws ec2 describe-volumes \
+            --region "$REGION" \
+            --filters "Name=status,Values=available" \
+            --query 'Volumes[*].[VolumeId,Size,CreateTime,Tags]' \
+            --output json)
+          echo "$ALL_AVAILABLE" | python3 -c "
+          import sys, json
+          vols = json.load(sys.stdin)
+          if not vols:
+              print('✅ No available (unattached) volumes in the region')
+          else:
+              print(f'⚠️ Found {len(vols)} available volume(s) — review manually:')
+              for v in vols:
+                  print(f'  {v[0]} | {v[1]}GB | Created: {v[2]}')
+          "
