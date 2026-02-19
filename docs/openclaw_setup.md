@@ -1,6 +1,6 @@
 # OpenClaw Setup & Operations Guide
 
-*Last updated: 2026-02-18 · Tested with OpenClaw 2026.2.15, Node.js v22.x, Ubuntu/Debian*
+*Last updated: 2026-02-19 · Tested with OpenClaw 2026.2.15, Node.js v22.x, Ubuntu/Debian*
 
 Quick reference for installing, configuring, and managing OpenClaw on an EC2 instance bootstrapped by this repo's `userdata.sh`.
 
@@ -69,7 +69,7 @@ openclaw onboard \
   --non-interactive \
   --accept-risk \
   --auth-choice anthropic-api-key \
-  --anthropic-api-key "sk-ant-..." \
+  --anthropic-api-key "sk-ant-..." \ # Replace with your actual key — NEVER commit this to git
   --install-daemon \
   --gateway-auth token \
   --gateway-bind loopback

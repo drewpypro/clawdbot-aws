@@ -1,6 +1,6 @@
 # Branch Protection & Rulesets Guide
 
-*Last updated: 2026-02-18 · Tested with GitHub Free plan, OpenClaw 2026.2.15*
+*Last updated: 2026-02-19 · Tested with GitHub Free plan, OpenClaw 2026.2.15*
 
 > **⚠️ Disclaimer:** This document was collaboratively created by a human ([drewpypro](https://github.com/drewpypro)) and an AI bot ([drewpy-code-agent](https://github.com/drewpy-code-agent)) running [OpenClaw](https://github.com/openclaw/openclaw). While we've tested these configurations hands-on, **take everything with a grain of salt**. Further testing is needed and additional learning opportunities remain. Always validate against [official GitHub documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets) before applying to production repositories.
 >
@@ -57,7 +57,7 @@ The ruleset targets the **Default** branch (`main`). All rules apply only to pus
 | Rule | Enabled | Description |
 |------|---------|-------------|
 | **Restrict creations** | ✅ | Only bypass actors can create refs matching the target. Prevents accidental creation of branches that match protected patterns. |
-| **Restrict updates** | ❌ | If enabled, only bypass actors could push to `main`. We leave this OFF because updates go through PRs anyway (enforced by "Require a pull request before merging"). |
+| **Restrict updates** | ❌ | If enabled, only bypass actors can push commits that target `main` — including merging pull requests. We initially enabled this but discovered it blocked the bot (`drewpy-code-agent`) from merging approved PRs via the API, since the bot is not a bypass actor. Disabling this is safe because "Require a pull request before merging" already prevents direct pushes to `main`, and code owner approval ensures human review. The combination of PR requirements + code owner review provides the access control without needing restrict updates. |
 | **Restrict deletions** | ✅ | Prevents anyone (except bypass actors) from deleting the `main` branch. |
 | **Require linear history** | ❌ | Would prevent merge commits. We allow all merge methods (merge, squash, rebase) so this stays off. |
 | **Require signed commits** | ✅ | All commits pushed to `main` must have verified GPG signatures. This ensures commit authenticity and prevents impersonation. |
@@ -258,29 +258,9 @@ jobs:
 
 This way the `terraform-plan` check always reports a status (satisfying the requirement), but only actually runs terraform when relevant files changed.
 
-**2. Use `dorny/paths-filter` action**
+**2. Third-party path filter actions**
 
-The [paths-filter](https://github.com/dorny/paths-filter) action provides cleaner conditional logic:
-
-```yaml
-jobs:
-  terraform-plan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            terraform:
-              - '*.tf'
-              - 'userdata.sh'
-      - name: Terraform Plan
-        if: steps.filter.outputs.terraform == 'true'
-        run: |
-          terraform init
-          terraform plan
-```
+Alternative approaches exist (e.g., [dorny/paths-filter](https://github.com/dorny/paths-filter)), but we chose the pass-through job approach above to avoid introducing external supply chain dependencies. See [Lesson #6](#6-supply-chain-risks) on supply chain risks — any third-party action you add to your workflow has access to your repository secrets and could be compromised.
 
 **3. Admin bypass** — Repo admins can merge regardless of status check requirements. Quick but doesn't scale.
 

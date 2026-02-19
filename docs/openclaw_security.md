@@ -1,6 +1,6 @@
 # OpenClaw Security Configuration Guide
 
-*Last updated: 2026-02-18 · Tested with OpenClaw 2026.2.15*
+*Last updated: 2026-02-19 · Tested with OpenClaw 2026.2.15*
 
 > **⚠️ Disclaimer:** This document was collaboratively created by a human and an AI bot. It covers security configurations specific to the `drewpypro/clawdbot-aws` deployment using OpenClaw with Signal and Discord channels. Always validate recommendations against your own threat model and the [official OpenClaw documentation](https://docs.openclaw.ai).
 
@@ -25,6 +25,7 @@ If you read nothing else:
 - [Channel Security](#channel-security)
 - [Credential Management](#credential-management)
 - [Execution Controls](#execution-controls)
+- [Recommended Architecture: Isolate Channel Agents](#recommended-architecture-isolate-channel-agents)
 - [Network Security](#network-security)
 - [Monitoring & Auditing](#monitoring--auditing)
 - [AWS-Specific Risks](#aws-specific-risks)
@@ -163,6 +164,12 @@ This checks for common misconfigurations like exposed bindings, missing auth, an
 - Monitor the bot's activity in Discord audit logs
 - Regularly rotate the bot token via the [Developer Portal](https://discord.com/developers/applications)
 
+**Rate limiting and concurrency controls:**
+- `agents.defaults.maxConcurrent` (currently 4) limits parallel agent execution
+- `agents.defaults.subagents.maxConcurrent` (currently 8) limits parallel sub-agents
+- Set Anthropic API spending limits in the [Anthropic Console](https://console.anthropic.com)
+- For semi-public deployments, consider a LiteLLM proxy for centralized rate limiting, cost controls, and audit logging
+
 ### Signal (signal-cli)
 
 | Setting | Recommended | Why |
@@ -173,8 +180,9 @@ This checks for common misconfigurations like exposed bindings, missing auth, an
 | **Group access** | Allowlist specific groups | Bot should only respond in known groups |
 
 **Key risks:**
+- **End-to-end encryption terminates at the bot.** Signal provides E2E encryption between the sender and the `signal-cli` instance. Once decrypted locally, all message content is accessible to anyone with file access to the clawdbot user's home directory. This is a fundamental architectural tradeoff — the bot needs to read messages to respond, but the security guarantee of E2E encryption does not extend to the bot's storage.
 - The `signal-cli` data directory contains private keys — if compromised, the Signal identity is compromised
-- Signal messages are end-to-end encrypted, but the bot decrypts them locally — local disk access = message access
+- `signal-cli` is an **unofficial, community-maintained client** — it reverse-engineers the Signal protocol and is not endorsed or audited by the Signal Foundation. Always verify downloads with SHA256 checksums and monitor the [signal-cli GitHub](https://github.com/AsamK/signal-cli) for security disclosures.
 - Anyone in an allowed group can interact with the bot
 
 **Mitigations:**
@@ -245,6 +253,53 @@ gitleaks detect --source . --verbose
 
 If you find a leaked secret: **rotate it immediately**, then use `git filter-branch` or [BFG Repo-Cleaner](https://rtyley.github.io/bfg-repo-cleaner/) to remove it from history.
 
+### OpenClaw Internal Credential Files
+
+OpenClaw stores API keys, tokens, and auth profiles in plaintext JSON under `~/.openclaw/`. Key files containing secrets:
+- `openclaw.json` — gateway token, Discord bot token
+- `agents/main/agent/auth-profiles.json` — Anthropic API token
+- Any `.pre-hardening` or `.bak` files from before configuration changes
+
+**Recommended file permissions:**
+```bash
+chmod 700 ~/.openclaw/
+chmod 600 ~/.openclaw/openclaw.json
+chmod 700 ~/.openclaw/credentials/ ~/.openclaw/agents/
+
+# Delete old backup files that may contain pre-hardening secrets
+rm -f ~/.openclaw/openclaw.json.pre-hardening ~/.openclaw/*.bak
+
+# Audit for plaintext secrets
+grep -rn "sk-ant\|ghp_\|token" ~/.openclaw/ --include="*.json" | head -20
+```
+
+### Token Storage Alternatives
+
+Instead of storing API keys directly in `openclaw.json`, consider these alternatives:
+
+**Environment variables (recommended first step):** OpenClaw reads `ANTHROPIC_API_KEY` and `DISCORD_BOT_TOKEN` from the environment. Store keys in a `chmod 600` env file and reference it from the systemd unit:
+```ini
+[Service]
+EnvironmentFile=/home/clawdbot/.env_secrets
+```
+
+**Vault integration:** If you run HashiCorp Vault, the systemd `ExecStartPre` can pull secrets from Vault and export them before the gateway starts. The token never touches the config file on disk.
+
+**LiteLLM proxy:** [LiteLLM](https://github.com/BerriAI/litellm) can sit between OpenClaw and the model provider API. OpenClaw points at `http://localhost:4000` as its provider endpoint. LiteLLM holds the real API key and provides rate limiting, cost controls, and centralized logging.
+
+**Anthropic Workspace scoping:** Set up an Anthropic Organization at [console.anthropic.com](https://console.anthropic.com) → Settings → Organization. Create a dedicated workspace (e.g., "clawdbot-prod") and generate a key scoped to that workspace with per-workspace spending limits. If the key leaks, the blast radius is limited to that workspace's budget.
+
+### Session Log Secret Leakage
+
+OpenClaw logs full conversation content to session files (`~/.openclaw/agents/main/sessions/*.jsonl`). If a secret (API key, PAT, token) is ever seen by the agent during a conversation — whether the agent used it, the user pasted it, or it appeared in command output — it gets written to the session log in plaintext.
+
+**Mitigations:**
+- Never paste secrets directly into agent conversations — use environment variables or config files instead
+- Inject credentials via environment variables so the agent uses them without seeing the raw value
+- Periodically scan session logs for leaked secrets: `trufflehog filesystem ~/.openclaw/agents/ --only-verified`
+- Consider purging old session logs on a schedule (cron job to delete sessions older than N days)
+- Restrict session directory permissions: `chmod 700 ~/.openclaw/agents/`
+
 ---
 
 ## Execution Controls
@@ -283,6 +338,63 @@ openclaw config get browser
 
 If browser automation isn't needed, disable it to reduce attack surface.
 
+### Sandbox Mode
+
+Sandbox mode controls whether tool execution runs on the host or in a Docker container. Check your config:
+
+```bash
+openclaw config get agents.defaults.sandbox
+```
+
+Our deployment uses `mode: "non-main"` with `scope: "session"` and `docker.network: "none"`. This means:
+- **Main session** (TUI/CLI) — runs on the host with full access
+- **All other sessions** (Discord channels, Signal contacts, sub-agents) — run in per-session Docker sandboxes with no network access
+
+Options:
+- **`off`** — Everything runs on host (dangerous)
+- **`non-main`** (recommended) — Isolates channel/sub-agent sessions in Docker
+- **`always`** — Maximum isolation, even your own TUI session is sandboxed
+
+The `docker.network: "none"` setting is critical — it prevents sandboxed sessions from making outbound network calls, blocking data exfiltration even if prompt injection succeeds.
+
+### Context Isolation (Session Scope)
+
+OpenClaw session scoping controls whether conversations share context across channels and users:
+- Discord guild channel sessions are isolated per channel (`agent:<agentId>:discord:channel:<channelId>`)
+- DM sessions can share the main session (`session.dmScope=main`) or be fully isolated (`per-channel-peer`)
+
+If DMs are enabled and share the main session, context can bleed between your TUI session and DM conversations. Our deployment has DMs disabled (`dmPolicy: "disabled"`), which mitigates this. For defense-in-depth, explicitly set `session.dmScope` to `per-channel-peer`.
+
+### Command Deny List (denyCommands)
+
+`gateway.nodes.denyCommands` blocks specific agent commands by exact name matching. Our deployment denies `camera.snap`, `camera.clip`, `screen.record`, `calendar.add`, `contacts.add`, `reminders.add` — but these commands only exist when mobile nodes (iOS/Android) are paired via the Bridge. On a headless Linux server with only Discord and Signal, these entries have no effect.
+
+For a Discord/Signal-only deployment, the meaningful security boundaries are:
+- `tools.elevated.enabled: false` (no sudo/root)
+- `commands.native: false` (no slash commands)
+- `sandbox.mode: "non-main"` (channel sessions sandboxed)
+- `docker.network: "none"` (sandboxed sessions can't reach the network)
+
+---
+
+## Recommended Architecture: Isolate Channel Agents
+
+> **This is the single highest-impact security improvement available** beyond what's currently configured.
+
+**Current state:** The main agent session (with full unsandboxed host access) handles Discord messages. While `sandbox.mode: "non-main"` sandboxes non-main sessions, the main session itself is not sandboxed.
+
+**Recommended change:** Route Discord and Signal to dedicated sub-agents with `sandbox.mode: "always"` and `docker.network: "none"`. Reserve the main session for direct TUI/CLI use only.
+
+```
+Main session (TUI/CLI)  ← unsandboxed, direct host access, owner-only
+Discord sub-agent       ← sandboxed, docker network: none
+Signal sub-agent        ← sandboxed, docker network: none
+```
+
+This converts the main session from "directly exposed to untrusted channel input" to "only accessible via local TUI." Even if a prompt injection succeeds via Discord, the attacker is trapped in a network-isolated Docker container.
+
+**Status:** This is a future configuration change, not yet implemented. Documented here for planning purposes.
+
 ---
 
 ## Network Security
@@ -301,6 +413,8 @@ For this deployment, the host should have strict outbound firewall rules:
 
 **Block everything else outbound.** This limits what a compromised bot can reach.
 
+> **Note on AWS Security Groups:** AWS Security Groups provide port-based filtering (e.g., allow TCP 443 outbound) but cannot filter by FQDN/domain. The egress rules allow HTTPS to *any* destination, not just the specific endpoints listed above. For true destination-based egress allowlisting, you need an AWS Network Firewall, a proxy server, or a next-generation firewall with FQDN-based rules. Our homelab deployment benefits from Palo Alto firewall FQDN-based egress rules that AWS cannot replicate at this price point.
+
 > **⚠️ Egress filtering is critical.** Most people lock down ingress (inbound) but leave egress (outbound) wide open. If the bot is compromised via prompt injection, unrestricted egress means the attacker can exfiltrate data to any endpoint. Egress allowlisting is one of the most effective mitigations against data exfiltration — the bot only needs to reach the specific endpoints listed above.
 
 ### SSL/TLS Inspection
@@ -312,6 +426,16 @@ export NODE_EXTRA_CA_CERTS=/path/to/ca-certificate.crt
 ```
 
 Add this to the systemd unit's Environment or the user's `.bashrc`.
+
+### mDNS Discovery Broadcasting
+
+OpenClaw broadcasts its presence via mDNS (`_openclaw-gw._tcp` on port 5353) for local device discovery. In full mode, the mDNS TXT records expose operational details including filesystem paths, hostname, and display name.
+
+On a segmented network (multiple VLANs), this can leak information to adjacent segments. **Disable mDNS unless you need local device discovery:**
+
+```bash
+openclaw config set gateway.mdns.enabled false
+```
 
 ---
 

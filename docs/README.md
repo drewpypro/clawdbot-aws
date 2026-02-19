@@ -14,4 +14,6 @@ These documents were collaboratively created by a human ([drewpypro](https://git
 
 Take everything with a grain of salt — further testing is needed. Always validate against official documentation before applying to production.
 
+Security reviews were conducted by an AI sub-agent reviewer (SecReview-9000 / "Larry") and a separate Claude Opus 4.6 instance. Findings were independently verified before inclusion — unverified claims (including fabricated CVEs and vendor reports) were excluded.
+
 > **⚠️ Caution:** This repo deploys infrastructure to AWS using Terraform. AI-managed infrastructure automation carries real financial risk and personal liability. See individual docs for details.
