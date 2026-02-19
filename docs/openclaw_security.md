@@ -588,7 +588,11 @@ In February 2026, [Koi Security disclosed](https://www.koi.ai/blog/clawhavoc-341
 
 ### Infostealer Targeting
 
-RedLine and Lumma infostealers have added OpenClaw file paths (`~/.openclaw/`, `~/.clawdbot/`, `~/.clawhub/`) to their collection targets. This means a compromised workstation could expose gateway tokens, API keys, and session history.
+Infostealer malware is actively targeting OpenClaw configuration files. [Hudson Rock documented](https://thehackernews.com/2026/02/infostealer-steals-openclaw-ai-agent.html) the first in-the-wild case of an infostealer exfiltrating a victim's entire `~/.openclaw/` directory, including gateway tokens, cryptographic keys, and memory files. The malware used a broad file-grabbing routine rather than a dedicated OpenClaw module, but researchers expect purpose-built modules to follow.
+
+Multiple security vendors have confirmed that commodity infostealers are now sweeping for OpenClaw file paths (`~/.openclaw/`, `~/.clawdbot/`, `~/.clawhub/`) alongside traditional browser and wallet targets. A compromised workstation could expose gateway tokens, API keys, and session history.
+
+**Coverage:** [The Hacker News](https://thehackernews.com/2026/02/infostealer-steals-openclaw-ai-agent.html) · [BleepingComputer](https://www.bleepingcomputer.com/news/security/infostealer-malware-found-stealing-openclaw-secrets-for-first-time/) · [Infosecurity Magazine](https://www.infosecurity-magazine.com/news/infostealer-targets-openclaw/) · [eSecurity Planet](https://www.esecurityplanet.com/threats/infostealers-target-openclaw-ai-configuration-files/) · [CyberInsider](https://cyberinsider.com/infostealer-malware-now-targeting-openclaw-ai-environments/)
 
 > ⚠️ **Action:** Apply strict file permissions (`chmod 600`) to `~/.openclaw/openclaw.json` and any files containing tokens. See [Credential Management](#credential-management).
 
