@@ -1,5 +1,7 @@
 # OpenClaw Security Configuration Guide
 
+*Last updated: 2026-02-18 · Tested with OpenClaw 2026.2.15*
+
 > **⚠️ Disclaimer:** This document was collaboratively created by a human and an AI bot. It covers security configurations specific to the `drewpypro/clawdbot-aws` deployment using OpenClaw with Signal and Discord channels. Always validate recommendations against your own threat model and the [official OpenClaw documentation](https://docs.openclaw.ai).
 
 ---
@@ -30,6 +32,45 @@ When running an AI bot with access to shell commands, messaging platforms, and c
 | **Data exfiltration** | Privacy breach | Low-Medium — bot has access to files, messages, and APIs |
 | **Bot token compromise** | Impersonation, spam, malicious actions | Medium — tokens stored on disk |
 | **Supply chain attack** | Code execution via compromised dependencies | Low — npm packages, GitHub Actions |
+| **Dependency confusion** | Malicious package installed via OpenClaw/npm update | Low — unsigned updates from npm registry |
+
+---
+
+## Prompt Injection — The #1 Threat
+
+Prompt injection is the most dangerous threat for any AI bot with execution capabilities. It deserves special attention beyond the threat model table above.
+
+### What Is It?
+
+A prompt injection attack occurs when a malicious user crafts a message designed to override the AI's instructions and make it execute unintended actions. For example:
+
+- A Discord message that tricks the bot into running shell commands
+- A carefully worded request that causes the bot to reveal secrets from environment variables
+- A message in a group chat that manipulates the bot into sending data to an external endpoint
+
+### Why It's Critical Here
+
+This bot has:
+- **Shell access** via exec tools
+- **Access to secrets** (API keys, tokens in env files)
+- **Network access** to GitHub, AWS, Discord, Signal
+- **File system access** to the workspace and home directory
+
+A successful prompt injection could chain these capabilities: read secrets → exfiltrate via curl → game over.
+
+### Mitigations
+
+1. **Exec approval mode** — Use `allowlist` or `ask` mode, never `full` (see [Execution Controls](#execution-controls))
+2. **Channel allowlists** — Restrict who can message the bot (see [Channel Security](#channel-security))
+3. **User allowlists** — Only accept commands from trusted users/IDs
+4. **Message context awareness** — OpenClaw provides inbound metadata that distinguishes system messages from user messages; the AI should treat user-provided text as untrusted
+5. **Network isolation** — Sub-agents run sandboxed with `network: none` by default
+6. **Monitor for anomalies** — Watch for unexpected command execution patterns in gateway logs
+7. **Least privilege** — The bot account should have minimal permissions on all platforms (GitHub, AWS, Discord)
+
+### What You Can't Fully Prevent
+
+No current LLM is immune to prompt injection. The mitigations above reduce the attack surface, but a sufficiently clever injection may still succeed. This is an active area of research. The best defense is defense-in-depth: even if the AI is tricked, limit what damage it can do.
 
 ---
 
@@ -146,11 +187,11 @@ For this deployment, the following secrets exist:
 
 | Secret | Location | Purpose | Rotation |
 |--------|----------|---------|----------|
-| Anthropic API key | OpenClaw config | AI model access | 90 days recommended |
-| Discord bot token | OpenClaw config | Discord channel | On suspicion of compromise |
-| Signal account | `~/.env_secrets` | Signal messaging | N/A (tied to phone number) |
-| GitHub PAT | `~/.env_secrets` | Repo operations | 90 days, or use fine-grained with expiry |
-| AWS credentials | GitHub Secrets | Terraform (CI only) | 90 days, prefer OIDC |
+| Anthropic API key | OpenClaw config | AI model access | Every 90 days — set a calendar reminder |
+| Discord bot token | OpenClaw config | Discord channel | Every 90 days — regenerate in [Developer Portal](https://discord.com/developers/applications) |
+| Signal account | `~/.env_secrets` | Signal messaging | N/A (tied to phone number) — rotate on compromise only |
+| GitHub PAT | `~/.env_secrets` | Repo operations | Every 90 days — use fine-grained PATs with built-in expiry dates |
+| AWS credentials | GitHub Secrets | Terraform (CI only) | **Never use static keys** — migrate to [OIDC federation](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services). If you must use keys, rotate every 90 days |
 
 ### Best Practices
 
@@ -174,6 +215,24 @@ if git diff --cached | grep -iE '(sk-ant-|ghp_|AKIA|discord.*token)'; then
 fi
 ```
 
+### Scanning Existing Git History
+
+Pre-commit hooks only catch *new* secrets. Secrets already committed to git history are the real danger — they persist in every clone forever. Use these tools to scan your full history:
+
+- **[git-secrets](https://github.com/awslabs/git-secrets)** — AWS tool that scans commits, messages, and merges for secrets
+- **[trufflehog](https://github.com/trufflesecurity/trufflehog)** — Scans git history for high-entropy strings and known secret patterns
+- **[gitleaks](https://github.com/gitleaks/gitleaks)** — Fast, configurable secret scanner with pre-commit support
+
+```bash
+# Scan full repo history with trufflehog
+trufflehog git file://. --since-commit HEAD~100
+
+# Scan with gitleaks
+gitleaks detect --source . --verbose
+```
+
+If you find a leaked secret: **rotate it immediately**, then use `git filter-branch` or [BFG Repo-Cleaner](https://rtyley.github.io/bfg-repo-cleaner/) to remove it from history.
+
 ---
 
 ## Execution Controls
@@ -190,6 +249,8 @@ Options:
 - **`ask`** — Agent must ask for approval before running commands (safest)
 - **`allowlist`** — Only pre-approved commands run without asking
 - **`full`** — Agent can run any command (most dangerous)
+
+> **🔴 CRITICAL WARNING about `full` mode:** Setting exec to `full` gives the AI **unsupervised shell access** — it can run any command without human approval. Combined with prompt injection (a malicious message crafted to manipulate the AI), this is **game over**: an attacker could execute arbitrary commands on your host, exfiltrate data, install backdoors, or pivot to other systems. **Never use `full` mode in production.** If you must use it for development, only do so in network-isolated containers with no access to secrets or sensitive systems. Use `allowlist` or `ask` mode for any deployment with real credentials or infrastructure access.
 
 **Recommendation for this deployment:** Use `allowlist` mode with a carefully curated list of safe commands. Full access should only be granted temporarily for specific tasks.
 
@@ -227,6 +288,8 @@ For this deployment, the host should have strict outbound firewall rules:
 | Signal servers | 443 | HTTPS | Signal messaging |
 
 **Block everything else outbound.** This limits what a compromised bot can reach.
+
+> **⚠️ Egress filtering is critical.** Most people lock down ingress (inbound) but leave egress (outbound) wide open. If the bot is compromised via prompt injection, unrestricted egress means the attacker can exfiltrate data to any endpoint. Egress allowlisting is one of the most effective mitigations against data exfiltration — the bot only needs to reach the specific endpoints listed above.
 
 ### SSL/TLS Inspection
 
@@ -286,7 +349,8 @@ This deployment uses Terraform to manage AWS infrastructure. Key risks:
 | Data transfer costs | Monitor outbound transfer in AWS Cost Explorer |
 
 **Recommended:**
-- Set up [AWS Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html) with email/SMS alerts
+- Set up a **billing alarm at a low threshold ($5-10)** via [CloudWatch Billing Alarms](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/monitor_estimated_charges_with_cloudwatch.html) — these trigger *before* costs accumulate, unlike budgets which alert after the fact
+- Set up [AWS Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html) with email/SMS alerts as a secondary safety net
 - Use AWS Free Tier eligible resources where possible
 - Always `terraform destroy` when not actively testing
 - Tag all resources for cost attribution

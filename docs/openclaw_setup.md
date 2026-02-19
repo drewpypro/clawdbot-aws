@@ -1,5 +1,7 @@
 # OpenClaw Setup & Operations Guide
 
+*Last updated: 2026-02-18 · Tested with OpenClaw 2026.2.15, Node.js v22.x, Ubuntu/Debian*
+
 Quick reference for installing, configuring, and managing OpenClaw on an EC2 instance bootstrapped by this repo's `userdata.sh`.
 
 ---
@@ -31,6 +33,18 @@ cat /var/log/clawdbot-bootstrap.log
 sudo su - clawdbot
 node --version          # should be v22.x
 openclaw --version      # should print version
+```
+
+### 1b. Verify IMDSv2 Enforcement (EC2 Security)
+
+EC2 Instance Metadata Service v1 (IMDSv1) is vulnerable to SSRF attacks. Verify your instance enforces IMDSv2:
+
+```bash
+# Check if IMDSv2 is required (HttpTokens should be "required")
+curl -s http://169.254.169.254/latest/meta-data/ -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" -X PUT 2>/dev/null && echo "IMDSv2 available" || echo "IMDS not reachable"
+
+# If HttpTokens is "optional", enforce IMDSv2 via AWS CLI:
+# aws ec2 modify-instance-metadata-options --instance-id <id> --http-tokens required --http-endpoint enabled
 ```
 
 ### 2. Run Onboarding Wizard
@@ -186,8 +200,10 @@ openclaw channels remove
 6. Invite the bot to your server using the generated URL
 7. Configure in OpenClaw:
    ```bash
-   openclaw channels add    # Select Discord, paste bot token
+   openclaw channels add    # Select Discord, follow prompts for bot token
    ```
+
+> **⚠️ Token safety:** Never paste your bot token directly into a terminal command that gets saved to shell history. Use `openclaw channels add` (which handles input securely) or inject via environment variable. If you accidentally paste a token in your terminal, clear it: `history -d $(history 1 | awk '{print $1}')` and regenerate the token in the Developer Portal immediately.
 
 **References:**
 - [Discord Developer Portal](https://discord.com/developers/applications)
@@ -209,6 +225,14 @@ sudo apt install default-jre-headless
 # Check latest version at https://github.com/AsamK/signal-cli/releases
 SIGNAL_CLI_VERSION="0.13.12"
 wget "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}-Linux.tar.gz"
+
+# ⚠️ Verify download integrity before installing!
+# Download the SHA256 checksum and verify:
+wget "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}-Linux.tar.gz.sha256"
+sha256sum -c "signal-cli-${SIGNAL_CLI_VERSION}-Linux.tar.gz.sha256"
+# Expected output: signal-cli-...-Linux.tar.gz: OK
+# If verification fails, DO NOT install — re-download or investigate.
+
 sudo tar xf "signal-cli-${SIGNAL_CLI_VERSION}-Linux.tar.gz" -C /opt
 sudo ln -sf "/opt/signal-cli-${SIGNAL_CLI_VERSION}/bin/signal-cli" /usr/local/bin/signal-cli
 signal-cli --version
@@ -295,6 +319,9 @@ openclaw gateway run --verbose
 # Check if port is in use
 openclaw gateway status
 ss -tlnp | grep 19000
+
+# If gateway starts but immediately exits, check for port conflicts:
+ss -tlnp | grep $(openclaw config get gateway.port 2>/dev/null || echo 18789)
 
 # Force kill existing and restart
 openclaw gateway start --force

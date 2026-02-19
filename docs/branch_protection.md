@@ -1,5 +1,7 @@
 # Branch Protection & Rulesets Guide
 
+*Last updated: 2026-02-18 · Tested with GitHub Free plan, OpenClaw 2026.2.15*
+
 > **⚠️ Disclaimer:** This document was collaboratively created by a human ([drewpypro](https://github.com/drewpypro)) and an AI bot ([drewpy-code-agent](https://github.com/drewpy-code-agent)) running [OpenClaw](https://github.com/openclaw/openclaw). While we've tested these configurations hands-on, **take everything with a grain of salt**. Further testing is needed and additional learning opportunities remain. Always validate against [official GitHub documentation](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets) before applying to production repositories.
 >
 > **⚠️ Caution — Financial & Liability Risk:** This repo deploys infrastructure to AWS using Terraform. Running AI-managed infrastructure automation carries **real financial risk** (unexpected resources, forgotten teardowns, runaway costs) and **personal liability**. We don't recommend replicating this setup without thorough understanding of both the AI tooling and AWS billing implications. This is a learning exercise, not a production blueprint.
@@ -126,7 +128,7 @@ The required check is `terraform-plan` (the job key). GitHub reports status chec
 
 Initially, our `terraform-plan` workflow only triggered on changes to `*.tf` and `userdata.sh` files. This caused a problem: PRs that only changed non-TF files (docs, workflows, CODEOWNERS) would never trigger the required status check, leaving the PR stuck forever.
 
-**Our solution:** We removed the path filter from the workflow trigger and added runtime detection instead. The workflow now runs on **all PRs**, but only executes `terraform init/validate/plan` when it detects actual Terraform file changes via `git diff`. Non-TF PRs get a passing check with skipped steps.
+**Our solution:** We removed the path filter from the workflow trigger and added runtime detection instead. The workflow now runs on **all PRs** and the `terraform-plan` **job always executes and reports a status** — satisfying the required check. However, the individual *steps* within the job (terraform init, validate, plan) are conditionally skipped when no Terraform files have changed. This is **not** bypassing branch protection — the required check still runs and passes; it just doesn't do unnecessary work on docs-only PRs.
 
 See the [Conditional Status Checks](#conditional-status-checks-path-filtered-workaround) section below for implementation details.
 
@@ -322,7 +324,13 @@ GitHub's free tier has limited audit logging. For compliance-sensitive workflows
 ### 9. Bot Token Compromise
 If the bot's PAT is compromised, an attacker can push code, create PRs, and potentially merge them (if approvals are already present). Mitigations: use fine-grained PATs with minimal scope, set expiration dates, rotate regularly, and monitor the bot account's activity log.
 
-### 10. Force Push Policy
+### 10. Bot Permissions Mental Model
+Never grant a bot account permissions you wouldn't grant to a junior developer on their first day. Bots can be tricked (prompt injection), compromised (token theft), or misconfigured. Treat them as the least-trusted member of your team and assign permissions accordingly.
+
+### 11. Audit Ruleset Changes
+Monitor your repository's audit log for ruleset modifications. If someone changes branch protection rules, you want to know immediately. GitHub logs ruleset create/update/delete events — check your repo's **Settings → Audit log** (Enterprise) or **Security → Audit log** regularly. On free plans, periodically screenshot your ruleset config as a baseline.
+
+### 12. Force Push Policy
 - **`main` branch:** Never. Block force pushes is enabled.
 - **Feature branches:** Acceptable for history cleanup (e.g., adding GPG signatures to existing commits via interactive rebase).
 
