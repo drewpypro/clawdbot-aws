@@ -175,7 +175,7 @@ This checks for common misconfigurations like exposed bindings, missing auth, an
 
 | Setting | Recommended | Why |
 |---------|-------------|-----|
-| **Account credentials** | Store in env file (`~/.env_secrets`) | Never hardcode phone numbers or account IDs |
+| **Account credentials** | Store in a protected env file | Never hardcode phone numbers or account IDs |
 | **Data directory** | Restrict permissions (`chmod 700`) | Contains private encryption keys |
 | **Contact allowlist** | Explicit username list | Prevents unknown contacts from commanding the bot |
 | **Group access** | Allowlist specific groups | Bot should only respond in known groups |
@@ -192,10 +192,10 @@ This checks for common misconfigurations like exposed bindings, missing auth, an
 chmod 700 ~/.local/share/signal-cli/
 
 # Store credentials in a protected env file
-chmod 600 ~/.env_secrets
+chmod 600 ~/.<your-env-file>
 
-# Never read env_secrets directly — only source it
-source ~/.env_secrets
+# Source credentials at runtime — never cat/read the file directly
+source ~/.<your-env-file>
 ```
 
 ---
@@ -281,7 +281,7 @@ Instead of storing API keys directly in `openclaw.json`, consider these alternat
 **Environment variables (recommended first step):** OpenClaw reads `ANTHROPIC_API_KEY` and `DISCORD_BOT_TOKEN` from the environment. Store keys in a `chmod 600` env file and reference it from the systemd unit:
 ```ini
 [Service]
-EnvironmentFile=/home/clawdbot/.env_secrets
+EnvironmentFile=/home/<bot-user>/.<your-env-file>
 ```
 
 **Vault integration:** If you run HashiCorp Vault, the systemd `ExecStartPre` can pull secrets from Vault and export them before the gateway starts. The token never touches the config file on disk.
