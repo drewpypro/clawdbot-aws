@@ -558,7 +558,7 @@ OpenClaw has had several significant security vulnerabilities. Keeping up to dat
 | [GHSA-g55j-c2v4-pjcg](https://github.com/openclaw/openclaw/security/advisories/GHSA-g55j-c2v4-pjcg) | Unauthenticated local RCE via WebSocket `config.apply` | High | v2026.1.29 |
 | [CVE-2026-25475](https://nvd.nist.gov/vuln/detail/CVE-2026-25475) / [GHSA-r8g4-86fx-92mq](https://github.com/openclaw/openclaw/security/advisories/GHSA-r8g4-86fx-92mq) | Local file inclusion via MEDIA path extraction (arbitrary file read) | 6.5 | v2026.1.30 |
 
-> ⚠️ **Action:** Verify you are running OpenClaw ≥ v2026.1.30. Run `openclaw --version` to check. If you're behind, update immediately with `openclaw update`.
+> ⚠️ **Action:** Verify you are running the latest OpenClaw version. Run `openclaw --version` to check, and `openclaw update check` to see if a newer release is available. OpenClaw has published numerous security patches since v2026.1.29 — staying current is critical.
 
 ### Additional Recent Advisories
 
@@ -568,9 +568,11 @@ OpenClaw has had several significant security vulnerabilities. Keeping up to dat
 | [GHSA-jqpq-mgvm-f9r6](https://github.com/advisories/GHSA-jqpq-mgvm-f9r6) | Command hijacking via unsafe PATH handling |
 | [GHSA-rv39-79c4-7459](https://github.com/advisories/GHSA-rv39-79c4-7459) | Gateway connect skips device identity checks |
 | [GHSA-mr32-vwc2-5j6h](https://github.com/advisories/GHSA-mr32-vwc2-5j6h) | Browser Relay `/cdp` WebSocket missing auth |
-| [GHSA-g27f-9qjv-22pm](https://github.com/advisories/GHSA-g27f-9qjv-22pm) | Log poisoning (indirect prompt injection) via WebSocket headers |
+| [GHSA-g27f-9qjv-22pm](https://github.com/advisories/GHSA-g27f-9qjv-22pm) | Log poisoning (indirect prompt injection) via WebSocket headers (patched v2026.2.13) |
 | [GHSA-xc7w-v5x6-cc87](https://github.com/advisories/GHSA-xc7w-v5x6-cc87) | Webhook auth bypass behind reverse proxy |
 | [CVE-2026-26324](https://nvd.nist.gov/vuln/detail/CVE-2026-26324) | SSRF guard bypass via IPv4-mapped IPv6 |
+
+> 📌 **Notable: Log Poisoning via WebSocket Headers (GHSA-g27f-9qjv-22pm)** — This is a novel indirect prompt injection vector. An attacker crafts malicious instructions into WebSocket headers when connecting to the gateway. These get written to OpenClaw's logs. If the agent later reads its own logs (e.g., for debugging), it may execute the injected instructions. Even with the gateway bound to loopback, anyone on the local network who can reach the gateway port could attempt this. Patched in v2026.2.13 — verify you're running at least this version.
 
 ### ClawHavoc Supply Chain Campaign
 
@@ -603,21 +605,35 @@ These CVEs affected Node.js versions prior to 22.22.0. If you are running an old
 
 ## References
 
-- [OpenClaw Documentation](https://docs.openclaw.ai)
-- [OpenClaw Security Audit](https://docs.openclaw.ai/cli/security)
-- [OpenClaw GitHub Security Advisories](https://github.com/openclaw/openclaw/security/advisories)
+**OpenClaw & General:**
+- [OpenClaw Official Security Documentation](https://docs.openclaw.ai/gateway/security)
+- [OpenClaw Security Advisories (GitHub)](https://github.com/openclaw/openclaw/security/advisories)
+- [OWASP Top 10 for LLM Applications](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
+
+**CVE-2026-25253 Coverage (1-Click RCE):**
+- [The Hacker News — OpenClaw Bug Enables One-Click RCE](https://thehackernews.com/2026/02/openclaw-bug-enables-one-click-remote.html)
+- [Hunt.io — Hunting OpenClaw Exposures (17,500+ instances)](https://hunt.io/blog/cve-2026-25253-openclaw-ai-agent-exposure)
+- [SOCRadar — CVE-2026-25253 Analysis](https://socradar.io/blog/cve-2026-25253-rce-openclaw-auth-token/)
+- [RunZero — OpenClaw Vulnerability](https://www.runzero.com/blog/openclaw/)
+
+**ClawHavoc Supply Chain Campaign:**
+- [Koi Security — ClawHavoc (original research)](https://www.koi.ai/blog/clawhavoc-341-malicious-clawedbot-skills-found-by-the-bot-they-were-targeting)
+- [Snyk — From SKILL.md to Shell Access](https://snyk.io/articles/skill-md-shell-access/)
+
+**Vendor Security Reports:**
+- [CrowdStrike — What Security Teams Need to Know About OpenClaw](https://www.crowdstrike.com/en-us/blog/what-security-teams-need-to-know-about-openclaw-ai-super-agent/)
+- [Jamf Threat Labs — OpenClaw AI Agent Vulnerability Analysis](https://www.jamf.com/blog/openclaw-ai-agent-insider-threat-analysis/)
+- [Cisco — Personal AI Agents Are a Security Nightmare](https://blogs.cisco.com/ai/personal-ai-agents-like-openclaw-are-a-security-nightmare)
+- [Palo Alto Networks — Why OpenClaw May Signal the Next AI Security Crisis](https://www.paloaltonetworks.com/blog/network-security/why-moltbot-may-signal-ai-crisis/)
+- [Barrack.ai — Complete OpenClaw Security Timeline](https://blog.barrack.ai/openclaw-security-vulnerabilities-2026/)
+
+**Node.js Runtime:**
+- [Node.js January 2026 Security Releases](https://nodejs.org/en/blog/vulnerability/december-2025-security-releases)
+- [Endor Labs — Node.js Runtime Vulnerabilities](https://www.endorlabs.com/learn/eight-for-one-multiple-vulnerabilities-fixed-in-the-node-js-runtime)
+
+**Infrastructure & CI/CD:**
 - [GitHub Security Best Practices](https://docs.github.com/en/code-security/getting-started/github-security-features)
 - [AWS Security Best Practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
 - [AWS OIDC for GitHub Actions](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
 - [signal-cli Security](https://github.com/AsamK/signal-cli/wiki/Security)
 - [Discord Bot Best Practices](https://discord.com/developers/docs/topics/community-resources#bots)
-- [OWASP Top 10 for LLM Applications](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
-- [Hunt.io — Hunting OpenClaw Exposures](https://hunt.io/blog/cve-2026-25253-openclaw-ai-agent-exposure) — 17,500+ exposed instances identified
-- [Koi Security — ClawHavoc Campaign](https://www.koi.ai/blog/clawhavoc-341-malicious-clawedbot-skills-found-by-the-bot-they-were-targeting) — Original ClawHavoc research
-- [Snyk — From SKILL.md to Shell Access](https://snyk.io/articles/skill-md-shell-access/) — Threat modeling agent skills
-- [Barrack.ai — OpenClaw Security Timeline](https://blog.barrack.ai/openclaw-security-vulnerabilities-2026/) — Comprehensive CVE and campaign timeline
-- [CrowdStrike — What Security Teams Need to Know About OpenClaw](https://www.crowdstrike.com/en-us/blog/what-security-teams-need-to-know-about-openclaw-ai-super-agent/)
-- [The Hacker News — OpenClaw 1-Click RCE](https://thehackernews.com/2026/02/openclaw-bug-enables-one-click-remote.html)
-- [SOCRadar — CVE-2026-25253 Analysis](https://socradar.io/blog/cve-2026-25253-rce-openclaw-auth-token/)
-- [RunZero — OpenClaw Vulnerability](https://www.runzero.com/blog/openclaw/)
-- [Endor Labs — Node.js Runtime Vulnerabilities](https://www.endorlabs.com/learn/eight-for-one-multiple-vulnerabilities-fixed-in-the-node-js-runtime)
