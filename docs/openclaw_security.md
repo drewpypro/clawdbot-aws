@@ -562,15 +562,15 @@ OpenClaw has had several significant security vulnerabilities. Keeping up to dat
 
 ### Additional Recent Advisories
 
-| GHSA | Description |
-|------|-------------|
-| GHSA-w2cg-vxx6-5xjg | DoS via large base64 media files |
-| GHSA-jqpq-mgvm-f9r6 | Command hijacking via unsafe PATH handling |
-| GHSA-rv39-79c4-7459 | Gateway connect skips device identity checks |
-| GHSA-mr32-vwc2-5j6h | Browser Relay `/cdp` WebSocket missing auth |
-| GHSA-g27f-9qjv-22pm | Log poisoning (indirect prompt injection) via WebSocket headers |
-| GHSA-xc7w-v5x6-cc87 | Webhook auth bypass behind reverse proxy |
-| CVE-2026-26324 | SSRF guard bypass via IPv4-mapped IPv6 |
+| Advisory | Description |
+|----------|-------------|
+| [GHSA-w2cg-vxx6-5xjg](https://github.com/advisories/GHSA-w2cg-vxx6-5xjg) | DoS via large base64 media files |
+| [GHSA-jqpq-mgvm-f9r6](https://github.com/advisories/GHSA-jqpq-mgvm-f9r6) | Command hijacking via unsafe PATH handling |
+| [GHSA-rv39-79c4-7459](https://github.com/advisories/GHSA-rv39-79c4-7459) | Gateway connect skips device identity checks |
+| [GHSA-mr32-vwc2-5j6h](https://github.com/advisories/GHSA-mr32-vwc2-5j6h) | Browser Relay `/cdp` WebSocket missing auth |
+| [GHSA-g27f-9qjv-22pm](https://github.com/advisories/GHSA-g27f-9qjv-22pm) | Log poisoning (indirect prompt injection) via WebSocket headers |
+| [GHSA-xc7w-v5x6-cc87](https://github.com/advisories/GHSA-xc7w-v5x6-cc87) | Webhook auth bypass behind reverse proxy |
+| [CVE-2026-26324](https://nvd.nist.gov/vuln/detail/CVE-2026-26324) | SSRF guard bypass via IPv4-mapped IPv6 |
 
 ### ClawHavoc Supply Chain Campaign
 
@@ -590,7 +590,9 @@ RedLine and Lumma infostealers have added OpenClaw file paths (`~/.openclaw/`, `
 
 > ⚠️ **Action:** Apply strict file permissions (`chmod 600`) to `~/.openclaw/openclaw.json` and any files containing tokens. See [Credential Management](#credential-management).
 
-### Node.js CVEs (relevant to our runtime)
+### Node.js CVEs (patched in v22.22.0)
+
+These CVEs affected Node.js versions prior to 22.22.0. If you are running an older version, update immediately.
 
 | CVE | Description | Patched |
 |-----|-------------|---------|
