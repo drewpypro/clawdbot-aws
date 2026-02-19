@@ -552,11 +552,11 @@ OpenClaw has had several significant security vulnerabilities. Keeping up to dat
 
 | CVE / GHSA | Description | CVSS | Patched |
 |------------|-------------|------|---------|
-| [CVE-2026-25253](https://nvd.nist.gov/vuln/detail/CVE-2026-25253) / [GHSA-g8p2-7wf7-98mq](https://github.com/advisories/GHSA-g8p2-7wf7-98mq) | **1-Click RCE** — Control UI trusted `gatewayUrl` from query string, enabling token exfiltration via crafted link | 8.8 | v2026.1.29 |
-| [CVE-2026-25157](https://nvd.nist.gov/vuln/detail/CVE-2026-25157) / [GHSA-q284-4pvr-m585](https://github.com/advisories/GHSA-q284-4pvr-m585) | OS command injection via unsanitized `sshNodeCommand` path | — | v2026.1.29 |
-| [CVE-2026-24763](https://nvd.nist.gov/vuln/detail/CVE-2026-24763) / [GHSA-mc68-q9jw-2h3v](https://github.com/advisories/GHSA-mc68-q9jw-2h3v) | Command injection in Docker execution via unsafe PATH handling | 8.8 | v2026.1.29 |
-| [GHSA-g55j-c2v4-pjcg](https://github.com/advisories/GHSA-g55j-c2v4-pjcg) | Unauthenticated local RCE via WebSocket `config.apply` | High | v2026.1.29 |
-| [CVE-2026-25475](https://nvd.nist.gov/vuln/detail/CVE-2026-25475) / [GHSA-r8g4-86fx-92mq](https://github.com/advisories/GHSA-r8g4-86fx-92mq) | Local file inclusion via MEDIA path extraction (arbitrary file read) | 6.5 | v2026.1.30 |
+| [CVE-2026-25253](https://nvd.nist.gov/vuln/detail/CVE-2026-25253) / [GHSA-g8p2-7wf7-98mq](https://github.com/openclaw/openclaw/security/advisories/GHSA-g8p2-7wf7-98mq) | **1-Click RCE** — Control UI trusted `gatewayUrl` from query string, enabling token exfiltration via crafted link | 8.8 | v2026.1.29 |
+| [CVE-2026-25157](https://nvd.nist.gov/vuln/detail/CVE-2026-25157) / [GHSA-q284-4pvr-m585](https://github.com/openclaw/openclaw/security/advisories/GHSA-q284-4pvr-m585) | OS command injection via unsanitized `sshNodeCommand` path | — | v2026.1.29 |
+| [CVE-2026-24763](https://nvd.nist.gov/vuln/detail/CVE-2026-24763) / [GHSA-mc68-q9jw-2h3v](https://github.com/openclaw/openclaw/security/advisories/GHSA-mc68-q9jw-2h3v) | Command injection in Docker execution via unsafe PATH handling | 8.8 | v2026.1.29 |
+| [GHSA-g55j-c2v4-pjcg](https://github.com/openclaw/openclaw/security/advisories/GHSA-g55j-c2v4-pjcg) | Unauthenticated local RCE via WebSocket `config.apply` | High | v2026.1.29 |
+| [CVE-2026-25475](https://nvd.nist.gov/vuln/detail/CVE-2026-25475) / [GHSA-r8g4-86fx-92mq](https://github.com/openclaw/openclaw/security/advisories/GHSA-r8g4-86fx-92mq) | Local file inclusion via MEDIA path extraction (arbitrary file read) | 6.5 | v2026.1.30 |
 
 > ⚠️ **Action:** Verify you are running OpenClaw ≥ v2026.1.30. Run `openclaw --version` to check. If you're behind, update immediately with `openclaw update`.
 
@@ -574,13 +574,13 @@ OpenClaw has had several significant security vulnerabilities. Keeping up to dat
 
 ### ClawHavoc Supply Chain Campaign
 
-In February 2026, [Koi Security disclosed](https://koisecurity.com) a coordinated supply chain attack on OpenClaw's ClawHub skill marketplace:
+In February 2026, [Koi Security disclosed](https://www.koi.ai/blog/clawhavoc-341-malicious-clawedbot-skills-found-by-the-bot-they-were-targeting) a coordinated supply chain attack on OpenClaw's ClawHub skill marketplace:
 
 - **Initial finding:** 341 malicious skills, 335 from a single campaign
 - **Expanded count:** Antiy CERT analysis found **1,184 malicious packages** linked to 12 publisher accounts
 - **Attack vector:** Skills disguised as crypto wallets, YouTube utilities, and trading bots instructed users to install "prerequisites" that delivered Atomic macOS Stealer (AMOS) and Windows keyloggers
 - **C2 infrastructure:** All 335 ClawHavoc skills shared a single C2 IP
-- **Coverage:** [The Hacker News](https://thehackernews.com), [Snyk](https://snyk.io), [SC Media](https://scmagazine.com), [Lakera](https://lakera.ai)
+- **Coverage:** [The Hacker News](https://thehackernews.com/2026/02/researchers-find-341-malicious-clawhub.html), [Snyk](https://snyk.io/articles/skill-md-shell-access/), [SC Media](https://www.scworld.com/news/openclaw-agents-targeted-with-341-malicious-clawhub-skills), [Lakera](https://www.lakera.ai/blog/the-agent-skill-ecosystem-when-ai-extensions-become-a-malware-delivery-channel)
 
 > ⚠️ **Lesson:** Treat third-party skills like untrusted code. Review `SKILL.md` files before installing. Prefer skills from verified publishers.
 
@@ -596,8 +596,8 @@ These CVEs affected Node.js versions prior to 22.22.0. If you are running an old
 
 | CVE | Description | Patched |
 |-----|-------------|---------|
-| [CVE-2025-59466](https://nvd.nist.gov/vuln/detail/CVE-2025-59466) | async_hooks DoS — uncatchable stack overflow crash (CVSS 7.5) | Node.js 22.22.0 (Jan 13, 2026) |
-| [CVE-2026-21636](https://nvd.nist.gov/vuln/detail/CVE-2026-21636) | Permission model bypass via Unix Domain Socket | Node.js 22.22.0 (Jan 13, 2026) |
+| [CVE-2025-59466](https://nvd.nist.gov/vuln/detail/CVE-2025-59466) | async_hooks DoS — uncatchable stack overflow crash (CVSS 7.5) ([deep-dive](https://nodejs.org/en/blog/vulnerability/january-2026-dos-mitigation-async-hooks)) | Node.js 22.22.0 ([advisory](https://nodejs.org/en/blog/vulnerability/december-2025-security-releases)) |
+| [CVE-2026-21636](https://nvd.nist.gov/vuln/detail/CVE-2026-21636) | Permission model bypass via Unix Domain Socket | Node.js 22.22.0 ([advisory](https://nodejs.org/en/blog/vulnerability/december-2025-security-releases)) |
 
 ---
 
@@ -612,7 +612,12 @@ These CVEs affected Node.js versions prior to 22.22.0. If you are running an old
 - [signal-cli Security](https://github.com/AsamK/signal-cli/wiki/Security)
 - [Discord Bot Best Practices](https://discord.com/developers/docs/topics/community-resources#bots)
 - [OWASP Top 10 for LLM Applications](https://owasp.org/www-project-top-10-for-large-language-model-applications/)
-- [Hunt.io — OpenClaw Exposure Analysis](https://hunt.io) — 17,500+ exposed instances identified
-- [Koi Security — ClawHavoc Campaign](https://koisecurity.com) — Original ClawHavoc research
-- [Snyk — From SKILL.md to Shell Access](https://snyk.io) — Threat modeling agent skills
-- [Barrack.ai — OpenClaw Security Timeline](https://barrack.ai) — Comprehensive CVE and campaign timeline
+- [Hunt.io — Hunting OpenClaw Exposures](https://hunt.io/blog/cve-2026-25253-openclaw-ai-agent-exposure) — 17,500+ exposed instances identified
+- [Koi Security — ClawHavoc Campaign](https://www.koi.ai/blog/clawhavoc-341-malicious-clawedbot-skills-found-by-the-bot-they-were-targeting) — Original ClawHavoc research
+- [Snyk — From SKILL.md to Shell Access](https://snyk.io/articles/skill-md-shell-access/) — Threat modeling agent skills
+- [Barrack.ai — OpenClaw Security Timeline](https://blog.barrack.ai/openclaw-security-vulnerabilities-2026/) — Comprehensive CVE and campaign timeline
+- [CrowdStrike — What Security Teams Need to Know About OpenClaw](https://www.crowdstrike.com/en-us/blog/what-security-teams-need-to-know-about-openclaw-ai-super-agent/)
+- [The Hacker News — OpenClaw 1-Click RCE](https://thehackernews.com/2026/02/openclaw-bug-enables-one-click-remote.html)
+- [SOCRadar — CVE-2026-25253 Analysis](https://socradar.io/blog/cve-2026-25253-rce-openclaw-auth-token/)
+- [RunZero — OpenClaw Vulnerability](https://www.runzero.com/blog/openclaw/)
+- [Endor Labs — Node.js Runtime Vulnerabilities](https://www.endorlabs.com/learn/eight-for-one-multiple-vulnerabilities-fixed-in-the-node-js-runtime)
