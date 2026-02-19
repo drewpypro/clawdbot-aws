@@ -4,9 +4,6 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - '*.tf'
-      - 'userdata.sh'
 
 concurrency:
   group: terraform
@@ -32,8 +29,22 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for Terraform changes
+        id: changes
+        run: |
+          TF_CHANGES=$(git diff --name-only origin/main...HEAD -- '*.tf' 'userdata.sh' | wc -l)
+          echo "has_tf=$([[ $TF_CHANGES -gt 0 ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          if [[ $TF_CHANGES -gt 0 ]]; then
+            echo "Terraform files changed — running plan"
+          else
+            echo "No Terraform changes detected — skipping plan"
+          fi
 
       - name: Terraform Init
+        if: steps.changes.outputs.has_tf == 'true'
         run: |
           terraform init \
             -backend-config="bucket=$BUCKET_NAME" \
@@ -43,7 +54,9 @@ jobs:
             -backend-config="secret_key=$BUCKET_SECRET_ACCESS_KEY"
 
       - name: Terraform Validate
+        if: steps.changes.outputs.has_tf == 'true'
         run: terraform validate
 
       - name: Terraform Plan
+        if: steps.changes.outputs.has_tf == 'true'
         run: terraform plan
