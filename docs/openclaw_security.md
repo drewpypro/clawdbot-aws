@@ -2,7 +2,7 @@
 
 *Last updated: 2026-02-19 · Tested with OpenClaw 2026.2.15*
 
-> **⚠️ Disclaimer:** This document was collaboratively created by a human and an AI bot. It covers security configurations specific to the `drewpypro/clawdbot-aws` deployment using OpenClaw with Signal and Discord channels. Always validate recommendations against your own threat model and the [official OpenClaw documentation](https://docs.openclaw.ai).
+> **⚠️ Disclaimer:** This document was collaboratively created by a human and an AI bot. It covers security configurations for OpenClaw deployments using Signal and Discord channels. Always validate recommendations against your own threat model and the [official OpenClaw documentation](https://docs.openclaw.ai).
 
 ---
 
@@ -175,13 +175,13 @@ This checks for common misconfigurations like exposed bindings, missing auth, an
 
 | Setting | Recommended | Why |
 |---------|-------------|-----|
-| **Account credentials** | Store in env file (`~/.env_secrets`) | Never hardcode phone numbers or account IDs |
+| **Account credentials** | Store in a protected env file | Never hardcode phone numbers or account IDs |
 | **Data directory** | Restrict permissions (`chmod 700`) | Contains private encryption keys |
 | **Contact allowlist** | Explicit username list | Prevents unknown contacts from commanding the bot |
 | **Group access** | Allowlist specific groups | Bot should only respond in known groups |
 
 **Key risks:**
-- **End-to-end encryption terminates at the bot.** Signal provides E2E encryption between the sender and the `signal-cli` instance. Once decrypted locally, all message content is accessible to anyone with file access to the clawdbot user's home directory. This is a fundamental architectural tradeoff — the bot needs to read messages to respond, but the security guarantee of E2E encryption does not extend to the bot's storage.
+- **End-to-end encryption terminates at the bot.** Signal provides E2E encryption between the sender and the `signal-cli` instance. Once decrypted locally, all message content is accessible to anyone with file access to the bot user's home directory. This is a fundamental architectural tradeoff — the bot needs to read messages to respond, but the security guarantee of E2E encryption does not extend to the bot's storage.
 - The `signal-cli` data directory contains private keys — if compromised, the Signal identity is compromised
 - `signal-cli` is an **unofficial, community-maintained client** — it reverse-engineers the Signal protocol and is not endorsed or audited by the Signal Foundation. Always verify downloads with SHA256 checksums and monitor the [signal-cli GitHub](https://github.com/AsamK/signal-cli) for security disclosures.
 - Anyone in an allowed group can interact with the bot
@@ -192,10 +192,10 @@ This checks for common misconfigurations like exposed bindings, missing auth, an
 chmod 700 ~/.local/share/signal-cli/
 
 # Store credentials in a protected env file
-chmod 600 ~/.env_secrets
+chmod 600 ~/.<your-env-file>
 
-# Never read env_secrets directly — only source it
-source ~/.env_secrets
+# Source credentials at runtime — never read the file directly
+source ~/.<your-env-file>
 ```
 
 ---
@@ -257,8 +257,8 @@ If you find a leaked secret: **rotate it immediately**, then use `git filter-bra
 ### OpenClaw Internal Credential Files
 
 OpenClaw stores API keys, tokens, and auth profiles in plaintext JSON under `~/.openclaw/`. Key files containing secrets:
-- `openclaw.json` — gateway token, Discord bot token
-- `agents/main/agent/auth-profiles.json` — Anthropic API token
+- `openclaw.json` — gateway token, channel bot tokens
+- `agents/*/agent/auth-profiles.json` — model API tokens
 - Any `.pre-hardening` or `.bak` files from before configuration changes
 
 **Recommended file permissions:**
@@ -268,10 +268,10 @@ chmod 600 ~/.openclaw/openclaw.json
 chmod 700 ~/.openclaw/credentials/ ~/.openclaw/agents/
 
 # Delete old backup files that may contain pre-hardening secrets
-rm -f ~/.openclaw/openclaw.json.pre-hardening ~/.openclaw/*.bak
+rm -f ~/.openclaw/*.bak
 
 # Audit for plaintext secrets
-grep -rn "sk-ant\|ghp_\|token" ~/.openclaw/ --include="*.json" | head -20
+grep -rn "sk-ant\|token" ~/.openclaw/ --include="*.json" | head -20
 ```
 
 ### Token Storage Alternatives
@@ -281,14 +281,14 @@ Instead of storing API keys directly in `openclaw.json`, consider these alternat
 **Environment variables (recommended first step):** OpenClaw reads `ANTHROPIC_API_KEY` and `DISCORD_BOT_TOKEN` from the environment. Store keys in a `chmod 600` env file and reference it from the systemd unit:
 ```ini
 [Service]
-EnvironmentFile=/home/clawdbot/.env_secrets
+EnvironmentFile=/home/<bot-user>/.env_secrets
 ```
 
 **Vault integration:** If you run HashiCorp Vault, the systemd `ExecStartPre` can pull secrets from Vault and export them before the gateway starts. The token never touches the config file on disk.
 
 **LiteLLM proxy:** [LiteLLM](https://github.com/BerriAI/litellm) can sit between OpenClaw and the model provider API. OpenClaw points at `http://localhost:4000` as its provider endpoint. LiteLLM holds the real API key and provides rate limiting, cost controls, and centralized logging.
 
-**Anthropic Workspace scoping:** Set up an Anthropic Organization at [console.anthropic.com](https://console.anthropic.com) → Settings → Organization. Create a dedicated workspace (e.g., "clawdbot-prod") and generate a key scoped to that workspace with per-workspace spending limits. If the key leaks, the blast radius is limited to that workspace's budget.
+**Anthropic Workspace scoping:** Set up an Anthropic Organization at [console.anthropic.com](https://console.anthropic.com) → Settings → Organization. Create a dedicated workspace (e.g., "prod") and generate a key scoped to that workspace with per-workspace spending limits. If the key leaks, the blast radius is limited to that workspace's budget.
 
 ### Session Log Secret Leakage
 
